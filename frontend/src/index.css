@@ -1,0 +1,235 @@
+@import "tailwindcss";
+
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    /* AllianzGI Primary Blue #003781 -> HSL 214 100% 25% */
+    --primary: 214 100% 25%;
+    --primary-foreground: 210 40% 98%;
+
+    /* AllianzGI Secondary #004A94 -> HSL 210 100% 29% */
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 214 100% 25%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* AllianzGI Premium Dark Mode Palette */
+    /* Background: Deepest Navy (Rich, not just black) */
+    --background: 222 47% 6%;
+    /* #050c18 */
+    --foreground: 210 40% 98%;
+
+    /* Card: Slightly lighter Navy for depth */
+    --card: 222 47% 10%;
+    /* #0d1626 */
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 10%;
+    --popover-foreground: 210 40% 98%;
+
+    /* Primary: Allianz Brand Blue adapted for dark mode contrast */
+    --primary: 214 90% 52%;
+    /* Vibrant but accessible blue */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 18%;
+    --muted-foreground: 215 20% 70%;
+    /* Readable gray */
+
+    --accent: 217 33% 18%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 20%;
+    --input: 217 33% 20%;
+    --ring: 214 90% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased font-sans tracking-tight;
+    font-feature-settings: "ss01", "ss02", "cv01", "cv02";
+  }
+}
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
+  --shadow-glow: 0 0 20px -5px var(--color-primary);
+  --shadow-glass: 0 8px 30px -5px rgba(0, 0, 0, 0.1);
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+
+/* Utility classes for text colors */
+.text-heading {
+  color: #003781;
+}
+
+.dark .text-heading {
+  color: #ffffff;
+}
+
+.text-body {
+  color: var(--color-text);
+}
+
+/* Custom scrollbar - Hidden but functional */
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+
+/* For Firefox */
+* {
+  scrollbar-width: none;
+}
+
+/* Prose styling for markdown content */
+.prose {
+  line-height: 1.7;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+  font-weight: 600;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  color: var(--color-text);
+}
+
+.prose h1 {
+  font-size: 1.5em;
+}
+
+.prose h2 {
+  font-size: 1.3em;
+}
+
+.prose h3 {
+  font-size: 1.1em;
+}
+
+.prose p {
+  margin: 0.75em 0;
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 1.5em;
+  margin: 0.75em 0;
+}
+
+.prose li {
+  margin: 0.25em 0;
+}
+
+.prose strong {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.prose em {
+  font-style: italic;
+}
+
+.prose code {
+  background: var(--color-border);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.prose pre {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1em;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+
+.prose pre code {
+  background: none;
+  padding: 0;
+}
+
+.prose hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 1.5em 0;
+}
+
+.prose a {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.prose blockquote {
+  border-left: 3px solid var(--color-primary);
+  padding-left: 1em;
+  margin: 1em 0;
+  color: var(--color-text-muted);
+}
