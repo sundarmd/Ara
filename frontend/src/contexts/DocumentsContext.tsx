@@ -22,6 +22,15 @@ export interface FileProgress {
     asset_class?: string;
 }
 
+interface UploadProgressEvent {
+    file?: string;
+    step?: string;
+    percent?: number;
+    detail?: string;
+    bank?: string;
+    asset_class?: string;
+}
+
 interface DocumentsContextType {
     documents: Document[];
     refreshDocuments: () => Promise<void>;
@@ -88,65 +97,48 @@ export function DocumentsProvider({ children }: { children: ReactNode }) {
             }
 
             const reader = response.body?.getReader();
-            const decoder = new TextDecoder();
 
             if (!reader) {
                 hadErrors = true;
                 throw new Error('Upload response did not include a progress stream');
             }
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
+            for await (const data of api.parseSSEStream<UploadProgressEvent>(reader)) {
+                if (data.step === 'done') {
+                    setTimeout(() => setUploads({}), hadErrors ? 15000 : 4000);
+                    refreshDocuments();
+                    continue;
+                }
 
-                const text = decoder.decode(value);
-                const lines = text.split('\n');
-
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        try {
-                            const data = JSON.parse(line.slice(6));
-
-                            if (data.step === 'done') {
-                                setTimeout(() => setUploads({}), hadErrors ? 15000 : 4000);
-                                refreshDocuments();
-                                continue;
-                            }
-
-                            const filename = data.file;
-                            if (!filename) continue;
-                            const isError = data.step === 'error';
-                            if (isError) {
-                                hadErrors = true;
-                                const detail = data.detail || 'PDF processing failed';
-                                if (!shownErrorDetails.has(detail)) {
-                                    shownErrorDetails.add(detail);
-                                    toast.error(files.length > 1 ? 'PDF upload failed' : `Could not upload ${filename}`, {
-                                        description: detail,
-                                        duration: 12000,
-                                    });
-                                }
-                            }
-
-                            setUploads(prev => ({
-                                ...prev,
-                                [filename]: {
-                                    filename,
-                                    step: data.step,
-                                    percent: data.percent || 0,
-                                    detail: data.detail || '',
-                                    status: data.step === 'complete' ? 'complete' :
-                                        data.step === 'duplicate' ? 'duplicate' :
-                                            data.step === 'error' ? 'error' : 'processing',
-                                    bank: data.bank,
-                                    asset_class: data.asset_class,
-                                }
-                            }));
-                        } catch {
-                            // Skip invalid JSON
-                        }
+                const filename = data.file;
+                if (!filename) continue;
+                const isError = data.step === 'error';
+                if (isError) {
+                    hadErrors = true;
+                    const detail = data.detail || 'PDF processing failed';
+                    if (!shownErrorDetails.has(detail)) {
+                        shownErrorDetails.add(detail);
+                        toast.error(files.length > 1 ? 'PDF upload failed' : `Could not upload ${filename}`, {
+                            description: detail,
+                            duration: 12000,
+                        });
                     }
                 }
+
+                setUploads(prev => ({
+                    ...prev,
+                    [filename]: {
+                        filename,
+                        step: data.step || '',
+                        percent: data.percent || 0,
+                        detail: data.detail || '',
+                        status: data.step === 'complete' ? 'complete' :
+                            data.step === 'duplicate' ? 'duplicate' :
+                                data.step === 'error' ? 'error' : 'processing',
+                        bank: data.bank,
+                        asset_class: data.asset_class,
+                    }
+                }));
             }
         } catch (error) {
             console.error('Upload error:', error);
