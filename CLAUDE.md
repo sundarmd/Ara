@@ -79,9 +79,7 @@ This is an **Agentic AI Research Assistant** for sell-side financial research re
 - 📝 Consider creating architecture diagrams for video/docs
 
 **Known Gaps / Future Enhancements:**
-- 🔧 `backend/services/llm_client.py` is untracked - needs to be committed
-- 🔧 No formal test suite (consider adding pytest tests)
-- 🔧 PDF serving endpoint (`/files/{doc_id}.pdf#page={page}`) may need implementation
+- 🔧 Continue expanding focused backend and frontend regression coverage
 - 🔧 Error handling edge cases (e.g., corrupted PDFs, API timeouts)
 - 🔧 Rate limiting / authentication (if deploying publicly)
 - 🔧 Recommendation comparison UI (side-by-side bank views)
@@ -99,9 +97,7 @@ To complete the challenge:
    - Comparison of recommendations across reports
    - Internal knowledge search (mock analyst data)
 
-2. **Commit untracked file**: `backend/services/llm_client.py`
-
-3. **Optional polish**:
+2. **Optional polish**:
    - Add README section with video link
    - Create simple architecture diagram
    - Test edge cases (large PDFs, multiple concurrent uploads)
@@ -258,8 +254,8 @@ All tools return **JSON arrays** of citation objects:
 ```
 
 ### PDF Deep Linking
-Backend constructs URLs like: `http://localhost:8000/files/{doc_id}.pdf#page={page}`
-- Frontend must serve PDFs from `backend/data/reports/` directory
+Backend constructs URLs like: `http://localhost:8000/documents/{doc_id}/file#page={page}`
+- Backend resolves the document through `DocumentStore` and serves the stored PDF from the configured reports directory
 - Deep links allow users to jump to source page in browser
 
 ## Common Development Workflows
@@ -319,11 +315,18 @@ All settings in `backend/config/settings.py` use Pydantic with environment varia
   - `RAG_SEARCH_RESULTS`: Number of chunks to retrieve (default: 8)
   - `RAG_CONTEXT_RECOMMENDATIONS`: Recommendations sent to agent (default: 15)
   - `TIMEOUT_*`: API timeout values
-  - `DATA_ROOT`, `REPORTS_DIR`, `VECTOR_DB_DIR`, `DOCUMENTS_DB_PATH`, `RECOMMENDATIONS_DB_PATH`: Storage paths
+  - `DATA_ROOT`, `REPORTS_DIR`, `VECTOR_DB_DIR`, `DOCUMENTS_DB_PATH`, `RECOMMENDATIONS_DB_PATH`, `IMAGES_DIR`, `TABLES_DIR`: Storage paths
 
 ## Testing & Debugging
 
-No formal test suite exists currently. For debugging:
+Backend tests use `unittest` under `backend/tests`; frontend checks use the configured npm scripts.
+
+```bash
+docker compose exec -T backend python -m unittest discover -s tests -v
+cd frontend && npm run lint && npm run build
+```
+
+For debugging:
 
 1. **Check API health**: `curl http://localhost:8000/health`
 2. **View API docs**: http://localhost:8000/docs (interactive Swagger UI)
@@ -350,7 +353,7 @@ For detailed task tracking and to-do lists, see **TODO.md** in the repository ro
 
 ## Git Workflow Notes
 
-Current branch: `knowledge`
+Current branch: `beta`
 Main branch: `main`
 
 Recent work focuses on:
@@ -359,5 +362,3 @@ Recent work focuses on:
 - Frontend document management
 - Streaming chat UX refinements
 - Challenge completion preparation
-
-**Action needed**: Commit untracked file `backend/services/llm_client.py` before finalizing the challenge submission.
