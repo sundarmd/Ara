@@ -29,8 +29,8 @@ ENV PATH=/home/appuser/.local/bin:$PATH
 # Copy application code
 COPY . .
 
-# Set ownership
-RUN chown -R appuser:appuser /app
+# Create the data root before USER so fresh named volumes inherit writable ownership.
+RUN mkdir -p /app/data && chown -R appuser:appuser /app
 
 # Switch to non-root user
 USER appuser
