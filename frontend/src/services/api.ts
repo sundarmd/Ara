@@ -72,6 +72,19 @@ class ApiService {
      * Parse a ReadableStream from an SSE endpoint.
      * Yields parsed JSON events.
      */
+    private parseSSELine<T>(line: string): T | undefined {
+        if (!line.startsWith('data: ')) return undefined;
+
+        try {
+            const jsonStr = line.slice(6);
+            if (jsonStr === '[DONE]') return undefined;
+            return JSON.parse(jsonStr) as T;
+        } catch (e) {
+            console.warn('Failed to parse SSE event:', line);
+            return undefined;
+        }
+    }
+
     async *parseSSEStream<T>(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<T, void, unknown> {
         const decoder = new TextDecoder();
         let buffer = '';
@@ -85,16 +98,16 @@ class ApiService {
             buffer = lines.pop() || '';
 
             for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    try {
-                        const jsonStr = line.slice(6);
-                        if (jsonStr === '[DONE]') continue; // Skip typical SSE terminator
-                        const event = JSON.parse(jsonStr);
-                        yield event as T;
-                    } catch (e) {
-                        console.warn('Failed to parse SSE event:', line);
-                    }
-                }
+                const event = this.parseSSELine<T>(line);
+                if (event !== undefined) yield event;
+            }
+        }
+
+        buffer += decoder.decode();
+        if (buffer) {
+            for (const line of buffer.split('\n')) {
+                const event = this.parseSSELine<T>(line);
+                if (event !== undefined) yield event;
             }
         }
     }
