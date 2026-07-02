@@ -46,7 +46,7 @@ This is an **Agentic AI Research Assistant** for sell-side financial research re
 
 **Agent Tools (Router/Planner via LangChain):**
 - ✅ `search_knowledge_base`: RAG search over uploaded research reports
-- ✅ `query_internal_views`: Mock internal AllianzGI house views (SQLite-backed)
+- ✅ `query_internal_views`: Mock internal Ara house views (SQLite-backed)
 - ✅ `get_analyst_intelligence`: Mock analyst profiles and track records
 - ✅ `web_search`: Live web search via Tavily API
 
@@ -176,7 +176,7 @@ The backend follows a **service-oriented architecture** with clear separation of
 
 3. **Available Agent Tools** (`services/tools.py`):
    - `search_knowledge_base`: RAG semantic search over uploaded PDFs
-   - `query_internal_views`: Query AllianzGI house views (SQLite-backed)
+   - `query_internal_views`: Query Ara house views (SQLite-backed)
    - `get_analyst_intelligence`: Look up analyst profiles and track records
    - `web_search`: Live web search via Tavily API
 
