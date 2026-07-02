@@ -23,9 +23,6 @@ class ApiService {
     }
 
     /**
-     * Upload a research report PDF.
-     */
-    /**
      * Upload a research report PDF (Streaming).
      * Returns the raw fetch response so the caller can handle the SSE stream.
      */
@@ -37,6 +34,19 @@ class ApiService {
         formData.append('report_date', metadata.reportDate);
 
         // Return raw response for SSE handling
+        return this.request('/upload', {
+            method: 'POST',
+            body: formData,
+        });
+    }
+
+    /**
+     * Upload one or more PDFs and return the raw streaming response.
+     */
+    async uploadFiles(files: File[]) {
+        const formData = new FormData();
+        files.forEach(file => formData.append('files', file));
+
         return this.request('/upload', {
             method: 'POST',
             body: formData,

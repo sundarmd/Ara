@@ -36,11 +36,7 @@ export function UploadModal({ file, onClose, onSuccess }: UploadModalProps) {
             let finalStatus = 'ok';
             let finalMessage = 'Report indexed successfully!';
 
-            // Re-use logic for parsing generic SSE events roughly or just ignore progress details in Modal
-            // But we need to check for errors/duplicates
-
-            // Simple manual decoder loop similar to DropZone or api.parseSSEStream
-            // We use api.parseSSEStream helper
+            // The modal only needs terminal upload status; shared SSE parsing lives in api.ts.
             for await (const event of api.parseSSEStream<any>(reader)) {
                 if (event.step === 'error') {
                     throw new Error(event.detail || 'Upload failed');

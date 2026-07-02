@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { api } from '../services/api';
-import { API_BASE_URL } from '../config/constants';
 import { toast } from 'sonner';
 
 export interface Document {
@@ -78,16 +77,11 @@ export function DocumentsProvider({ children }: { children: ReactNode }) {
         });
         setUploads(initial);
 
-        const formData = new FormData();
-        files.forEach(file => formData.append('files', file));
         let hadErrors = false;
         const shownErrorDetails = new Set<string>();
 
         try {
-            const response = await fetch(`${API_BASE_URL}/upload`, {
-                method: 'POST',
-                body: formData,
-            });
+            const response = await api.uploadFiles(files);
 
             if (!response.ok) {
                 hadErrors = true;
