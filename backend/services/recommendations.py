@@ -19,6 +19,8 @@ from models.schemas import Recommendation
 
 logger = logging.getLogger(__name__)
 
+RECOMMENDATION_EXTRACTION_MAX_CHARS = 20000
+
 # --- New Models for Internal Intelligence ---
 
 class Analyst(BaseModel):
@@ -288,6 +290,103 @@ class RecommendationStore:
             return deleted_count
 
 
+def _split_long_markdown_block(block: str, max_chars: int) -> List[str]:
+    """Split a single oversized markdown block without dropping content."""
+    parts: List[str] = []
+    remaining = block.strip()
+
+    while len(remaining) > max_chars:
+        split_at = max(
+            remaining.rfind("\n", 0, max_chars),
+            remaining.rfind(". ", 0, max_chars),
+            remaining.rfind(" ", 0, max_chars),
+        )
+        if split_at < max_chars // 2:
+            split_at = max_chars
+
+        part = remaining[:split_at].strip()
+        if part:
+            parts.append(part)
+        remaining = remaining[split_at:].strip()
+
+    if remaining:
+        parts.append(remaining)
+
+    return parts
+
+
+def _split_markdown_for_recommendation_extraction(
+    raw_markdown: str,
+    max_chars: int = RECOMMENDATION_EXTRACTION_MAX_CHARS,
+) -> List[str]:
+    """Split report markdown into bounded extraction windows."""
+    blocks = [block.strip() for block in raw_markdown.split("\n\n") if block.strip()]
+    if not blocks:
+        return []
+
+    windows: List[str] = []
+    current_blocks: List[str] = []
+    current_length = 0
+
+    def flush_current() -> None:
+        nonlocal current_blocks, current_length
+        if not current_blocks:
+            return
+        window = "\n\n".join(current_blocks).strip()
+        if window:
+            windows.append(window)
+        current_blocks = []
+        current_length = 0
+
+    for block in blocks:
+        if len(block) > max_chars:
+            flush_current()
+            windows.extend(_split_long_markdown_block(block, max_chars))
+            continue
+
+        separator_length = 2 if current_blocks else 0
+        projected_length = current_length + separator_length + len(block)
+        if current_blocks and projected_length > max_chars:
+            flush_current()
+            projected_length = len(block)
+
+        current_blocks.append(block)
+        current_length = projected_length
+
+    flush_current()
+    return windows
+
+
+def _normalise_recommendation_key(value: Optional[str]) -> str:
+    return " ".join(str(value or "").lower().split())
+
+
+def _dedupe_recommendations(recommendations: List[Recommendation]) -> List[Recommendation]:
+    """Deduplicate recommendations extracted from neighboring report windows."""
+    deduped: Dict[Tuple[str, str, str, str], Recommendation] = {}
+
+    for recommendation in recommendations:
+        key = (
+            _normalise_recommendation_key(recommendation.asset_class),
+            _normalise_recommendation_key(recommendation.sub_asset),
+            _normalise_recommendation_key(recommendation.stance),
+            _normalise_recommendation_key(recommendation.horizon),
+        )
+        existing = deduped.get(key)
+        if existing is None:
+            deduped[key] = recommendation
+            continue
+
+        if existing.page is None and recommendation.page is not None:
+            existing.page = recommendation.page
+        if existing.section is None and recommendation.section is not None:
+            existing.section = recommendation.section
+        if existing.confidence is None and recommendation.confidence is not None:
+            existing.confidence = recommendation.confidence
+
+    return list(deduped.values())
+
+
 async def extract_recommendations_with_mistral(
     doc_id: str,
     bank: str,
@@ -300,67 +399,83 @@ async def extract_recommendations_with_mistral(
     if not settings.MISTRAL_API_KEY:
         logger.warning("MISTRAL_API_KEY not set, skipping recommendation extraction")
         return []
-    
-    # Truncate markdown if too long (stay within context limits)
-    max_chars = 20000
-    markdown_text = raw_markdown[:max_chars]
-    if len(raw_markdown) > max_chars:
-        logger.info(f"Truncated markdown from {len(raw_markdown)} to {max_chars} chars")
-    
+
     from services.prompt_loader import load_prompt
     from services.llm_client import get_llm_client
-    
+
     system_prompt = load_prompt("recommendations_system")
-    user_prompt = load_prompt(
-        "recommendations_user", 
-        bank=bank, 
-        markdown_text=markdown_text
-    )
+    markdown_windows = _split_markdown_for_recommendation_extraction(raw_markdown)
+    if not markdown_windows:
+        return []
+
+    if len(markdown_windows) > 1:
+        logger.info(
+            "Split recommendation extraction into %s windows for document %s",
+            len(markdown_windows),
+            doc_id,
+        )
 
     try:
         client = get_llm_client()
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ]
-        
-        parsed = await client.get_chat_completion(
-            messages=messages,
-            json_mode=True
-        )
-        
-        # Handle different response structures
-        raw_recommendations = parsed.get("recommendations", [])
-        if not isinstance(raw_recommendations, list):
-            raw_recommendations = [raw_recommendations] if raw_recommendations else []
-        
         recommendations: List[Recommendation] = []
-        for r in raw_recommendations:
-            if not isinstance(r, dict):
-                continue
-            try:
-                recommendations.append(
-                    Recommendation(
-                        id=str(uuid.uuid4()),
-                        doc_id=doc_id,
-                        bank=bank,
-                        source_type="sell_side",
-                        asset_class=str(r.get("asset_class", "other")).lower(),
-                        sub_asset=r.get("sub_asset"),
-                        stance=str(r.get("stance", "Neutral")),
-                        horizon=r.get("horizon"),
-                        rationale=str(r.get("rationale", "")),
-                        page=r.get("page"),
-                        section=r.get("section"),
-                        confidence=r.get("confidence"),
-                    )
-                )
-            except Exception as e:
-                logger.warning("Failed to parse recommendation from LLM response", exc_info=True, extra={"doc_id": doc_id})
-                continue
 
-        logger.info(f"Extracted {len(recommendations)} recommendations from document {doc_id}")
-        return recommendations
+        for window_index, markdown_text in enumerate(markdown_windows, start=1):
+            user_prompt = load_prompt(
+                "recommendations_user",
+                bank=bank,
+                markdown_text=markdown_text,
+            )
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+
+            parsed = await client.get_chat_completion(
+                messages=messages,
+                json_mode=True,
+            )
+
+            # Handle different response structures
+            raw_recommendations = parsed.get("recommendations", [])
+            if not isinstance(raw_recommendations, list):
+                raw_recommendations = [raw_recommendations] if raw_recommendations else []
+
+            for r in raw_recommendations:
+                if not isinstance(r, dict):
+                    continue
+                try:
+                    recommendations.append(
+                        Recommendation(
+                            id=str(uuid.uuid4()),
+                            doc_id=doc_id,
+                            bank=bank,
+                            source_type="sell_side",
+                            asset_class=str(r.get("asset_class", "other")).lower(),
+                            sub_asset=r.get("sub_asset"),
+                            stance=str(r.get("stance", "Neutral")),
+                            horizon=r.get("horizon"),
+                            rationale=str(r.get("rationale", "")),
+                            page=r.get("page"),
+                            section=r.get("section"),
+                            confidence=r.get("confidence"),
+                        )
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to parse recommendation from LLM response",
+                        exc_info=True,
+                        extra={"doc_id": doc_id, "window_index": window_index},
+                    )
+                    continue
+
+        deduped = _dedupe_recommendations(recommendations)
+        logger.info(
+            "Extracted %s recommendations from document %s across %s windows",
+            len(deduped),
+            doc_id,
+            len(markdown_windows),
+        )
+        return deduped
 
     except Exception as e:
         logger.error("Recommendation extraction failed", exc_info=True, extra={"doc_id": doc_id, "bank": bank})

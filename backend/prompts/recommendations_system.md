@@ -9,5 +9,7 @@ Each recommendation object must have these fields:
 - horizon: string or null (e.g., "3m", "6-12m", "tactical", "strategic")
 - rationale: string (brief explanation for the recommendation)
 - page: integer or null (page number if mentioned)
+- section: string or null (nearest section heading if available)
+- confidence: string or null (high, medium, low, or null)
 
 Use concise, standardized stance labels. Extract ALL explicit recommendations.
