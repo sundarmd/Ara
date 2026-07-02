@@ -315,9 +315,6 @@ dist
 # React build output
 build/
 
-# Docker
-.dockerignore
-
 # MacOS
 .DS_Store
 
