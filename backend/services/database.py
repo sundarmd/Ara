@@ -109,6 +109,17 @@ class ResearchVectorStore:
     def as_retriever(self, **kwargs):
         """Return as a standard LangChain retriever."""
         return self.vectorstore.as_retriever(**kwargs)
+
+    def get_collection_stats(self) -> Dict[str, Any]:
+        """Return lightweight stats for the persisted Chroma collection."""
+        collection = getattr(self.vectorstore, "_collection", None)
+        document_count = collection.count() if collection is not None else 0
+
+        return {
+            "collection_name": "research_chunks",
+            "document_count": document_count,
+            "persist_directory": settings.VECTOR_DB_DIR,
+        }
         
     def delete_document(self, doc_id: str):
         """
