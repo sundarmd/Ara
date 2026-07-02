@@ -24,6 +24,15 @@ services:
       - RECOMMENDATIONS_DB_PATH=/app/data/recommendations.db
       - IMAGES_DIR=/app/data/images
       - RECOMMENDATIONS_PATH=/app/data/recommendations.json
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5).read()"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
     networks:
       - app-network
 
@@ -37,7 +46,8 @@ services:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     environment:
       - VITE_API_URL=http://localhost:8000
     networks:
