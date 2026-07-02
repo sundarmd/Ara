@@ -15,3 +15,9 @@ class AgentPromptTests(unittest.TestCase):
         self.assertNotIn("`query_recommendations`", prompt)
         self.assertNotIn("bank=None", prompt)
 
+    def test_agent_system_prompt_does_not_require_thought_tags(self):
+        prompt = load_prompt("agent_system")
+
+        self.assertNotIn("<thought>", prompt.lower())
+        self.assertNotIn("</thought>", prompt.lower())
+        self.assertNotIn("Thought Block", prompt)

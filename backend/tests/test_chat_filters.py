@@ -93,8 +93,9 @@ class ChatFilterToolTests(unittest.IsolatedAsyncioTestCase):
         ):
             events = [event async for event in orchestrator.process_query(request)]
 
-        self.assertEqual(len(events), 1)
-        self.assertEqual(json.loads(events[0].removeprefix("data: "))["answer"], "done")
+        parsed_events = [json.loads(event.removeprefix("data: ")) for event in events]
+        complete_event = [event for event in parsed_events if event["type"] == "complete"][0]
+        self.assertEqual(complete_event["answer"], "done")
         search_documents.assert_awaited_once_with(
             query="duration views",
             n_results=5,

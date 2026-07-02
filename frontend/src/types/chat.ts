@@ -15,7 +15,7 @@ export interface ThoughtEvent {
     phase: 'analyzing' | 'searching' | 'extracting' | 'generating';
     content: string;
     elapsed_ms: number;
-    details?: Array<Record<string, string>>;
+    details?: Array<Record<string, string | number | undefined>>;
 }
 
 export interface TokenEvent {

@@ -21,7 +21,7 @@ export function ThoughtsPanel({ thoughts, isThinking, startTime }: ThoughtsPanel
     const [elapsedTime, setElapsedTime] = useState(0);
     const intervalRef = useRef<number | null>(null);
 
-    // Extract sources from thoughts
+    // Extract sources from trace details
     const sources: SourceDetail[] = useMemo(() => {
         return thoughts
             .filter(t => t.phase === 'searching' && t.details)
@@ -56,11 +56,11 @@ export function ThoughtsPanel({ thoughts, isThinking, startTime }: ThoughtsPanel
         if (isThinking) {
             setIsExpanded(true);
         } else {
-            // Auto-collapse when thinking is done and content starts
+            // Auto-collapse when generation is done and content starts
             setIsExpanded(false);
         }
-        // User requesting "Turn-based" experience: keep thought panel open to see the process.
-        // We do *not* auto-collapse when thinking finishes, letting user see the history.
+        // Keep the trace panel open to show the process.
+        // We do *not* auto-collapse when generation finishes, letting user see the history.
         // Only collapse if user manually closes it.
     }, [isThinking]);
 
@@ -90,9 +90,9 @@ export function ThoughtsPanel({ thoughts, isThinking, startTime }: ThoughtsPanel
 
                 <span>
                     {isThinking ? (
-                        <>Thinking... ({formatTime(elapsedTime)})</>
+                        <>Working... ({formatTime(elapsedTime)})</>
                     ) : (
-                        <>Thought for {formatTime(elapsedTime)}</>
+                        <>Trace for {formatTime(elapsedTime)}</>
                     )}
                 </span>
 
@@ -106,10 +106,10 @@ export function ThoughtsPanel({ thoughts, isThinking, startTime }: ThoughtsPanel
             {/* Expanded content */}
             {isExpanded && (
                 <div className="w-full mt-3 space-y-2 p-6 rounded-lg bg-muted/30 border border-border/30 animate-in fade-in slide-in-from-top-2 duration-200">
-                    {/* Thought steps - compact list */}
+                    {/* Trace steps - compact list */}
                     <div className="w-full space-y-1.5 prose prose-sm dark:prose-invert max-w-none">
                         {thoughts.length === 0 && isThinking ? (
-                            // Skeleton loading while waiting for first thought
+                            // Skeleton loading while waiting for the first trace event
                             <div className="space-y-2">
                                 <Skeleton className="h-3 w-full" />
                                 <Skeleton className="h-3 w-4/5" />

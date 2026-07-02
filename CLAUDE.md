@@ -58,8 +58,8 @@ This is an **Agentic AI Research Assistant** for sell-side financial research re
 - ✅ Metadata auto-extraction (bank, asset class, report date)
 
 **UI/UX:**
-- ✅ Real-time streaming thoughts panel (agent reasoning transparency)
-- ✅ Message history with collapsible thoughts
+- ✅ Real-time streaming execution trace panel
+- ✅ Message history with collapsible execution traces
 - ✅ Multi-file upload with progress tracking (SSE)
 - ✅ Document library sidebar with filters
 - ✅ Source citations with deep links to PDF pages
@@ -234,11 +234,11 @@ Smart segment-aware chunking in `services/chunker.py`:
 - Adds metadata: page ranges, section headings, segment types
 - Uses `tiktoken` for token counting
 
-### Streaming Thought Extraction
-In `agent_orchestrator.py`, the agent wraps reasoning in `<thought>` tags:
-- Regex-based extraction of content between `<thought>...</thought>`
-- Aggressive filtering to prevent thought leakage into visible response
-- Emits thought events progressively (on newlines, periods, or buffer length)
+### Streaming Execution Traces
+In `agent_orchestrator.py`, the application emits deterministic trace events from LangChain callbacks:
+- Tool-start events show which specialist tool is running and with which arguments
+- Tool-end events summarize source counts returned by that tool
+- Final synthesis emits a code-owned trace before the complete answer event
 
 ### Tool Output Format
 All tools return **JSON arrays** of citation objects:

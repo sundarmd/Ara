@@ -4,7 +4,7 @@ Agent orchestrator using LangChain and Mistral.
 This module handles:
 - Tool-calling workflow for query interpretation
 - Tool selection and execution (RAG, SQL, Web) using LangChain
-- Response generation with streaming thoughts
+- Response generation with code-owned execution traces
 """
 import logging
 import json
@@ -20,6 +20,14 @@ from services.tools import AVAILABLE_TOOLS, reset_search_filter_scope, set_searc
 from models.schemas import ChatRequest, StreamEventType
 
 logger = logging.getLogger(__name__)
+
+TOOL_DISPLAY_NAMES = {
+    "query_internal_views": "Internal Investment Database",
+    "get_analyst_intelligence": "Analyst Intelligence",
+    "search_knowledge_base": "Research Report Knowledge Base",
+    "web_search": "Live Web Search",
+}
+
 
 class AgentOrchestrator:
     """
@@ -73,7 +81,7 @@ class AgentOrchestrator:
             # Load system prompt from markdown file
             system_prompt = load_prompt("agent_system")
             
-            # Define prompt with explicit thought requirement
+            # Define prompt for tool-calling execution.
             prompt = ChatPromptTemplate.from_messages([
                 ("system", system_prompt),
                 ("placeholder", "{chat_history}"),
@@ -84,13 +92,6 @@ class AgentOrchestrator:
             # Create Agent
             agent = create_tool_calling_agent(self.llm, AVAILABLE_TOOLS, prompt)
             agent_executor = AgentExecutor(agent=agent, tools=AVAILABLE_TOOLS, verbose=True)
-            
-            # Friendly tool names
-            TOOL_NAMES = {
-                "query_recommendations": "Internal Investment Database",
-                "search_knowledge_base": "Research Report Knowledge Base",
-                "web_search": "Live Web Search"
-            }
 
             # Execute with streaming
             # Hack: We need a simpler history management for now
@@ -104,8 +105,6 @@ class AgentOrchestrator:
             input_text = request.messages[-1].content
             
             # Streaming state
-            buffer = ""
-            in_thought_block = False
             collected_sources = []
             search_filter_token = set_search_filter_scope(
                 bank=request.bank,
@@ -130,132 +129,16 @@ class AgentOrchestrator:
                         content = "".join([str(c) for c in content if c])
                         
                     if content:
-                        buffer += content
-                        # LOGIC: Check for transitions
-                        while True:
-                            if not in_thought_block:
-                                # Look for open tag (case-insensitive)
-                                match = re.search(r'<thought>', buffer, re.IGNORECASE)
-                                if match:
-                                    start_idx = match.start()
-                                    in_thought_block = True
-                                    # Update buffer to start AFTER the tag
-                                    buffer = buffer[match.end():]
-                                    continue
-                                
-                                # Leakage Guard
-                                # If buffer ends with partial tag like "<", "<t", "<T", etc.
-                                # Check last few chars
-                                partial_tag = False
-                                # Check typical starting chars of <thought> or <function
-                                last_chars = buffer[-10:].lower() if len(buffer) > 10 else buffer.lower()
-                                if "<" in last_chars:
-                                    # If "<" is present, check if it could be start of <thought> or <function
-                                    # We wait for more content if it looks like a tag start
-                                    potential_tags = ["<thought>", "<function"]
-                                    for tag in potential_tags:
-                                        # Check if buffer ends with a prefix of 'tag'
-                                        # e.g. ends with "<t", "<th", "<tho"
-                                        # We compare against the start of the tag
-                                        # But we only care if the "<" is recent.
-                                        # Find index of "<"
-                                        less_pos = last_chars.rfind("<")
-                                        if less_pos != -1:
-                                            suffix = last_chars[less_pos:]
-                                            # Only wait if suffix is 2+ chars (< + letter), not just <
-                                            if tag.startswith(suffix) and len(suffix) >= 2:
-                                                partial_tag = True
-                                                break
-                                
-                                if partial_tag:
-                                    break # Wait for more chunks
-
-                                if "<function" in buffer.lower():
-                                     # Drop function tags aggressively
-                                     match_func = re.search(r'<function.*?>', buffer, re.IGNORECASE | re.DOTALL)
-                                     if match_func:
-                                         buffer = buffer[match_func.end():]
-                                         continue
-                                     else:
-                                         # Wait for closing >
-                                         break
-                                else:
-                                    # Emit visible tokens more aggressively
-                                    # If there's a < in buffer, emit everything before it to reduce lag
-                                    less_pos = buffer.rfind("<")
-                                    if less_pos > 0:
-                                        # Emit safe content before <, keep potential tag in buffer
-                                        yield self._format_event(StreamEventType.TOKEN, {
-                                            "content": buffer[:less_pos]
-                                        })
-                                        buffer = buffer[less_pos:]
-                                    elif less_pos == -1:
-                                        # No < at all, emit everything
-                                        yield self._format_event(StreamEventType.TOKEN, {
-                                            "content": buffer
-                                        })
-                                        buffer = ""
-                                    # If less_pos == 0, buffer starts with <, wait for more to determine if tag
-                                    break
-
-                            if in_thought_block:
-                                # Look for close tag (case-insensitive)
-                                match_end = re.search(r'</thought>', buffer, re.IGNORECASE)
-                                if match_end:
-                                    thought_content = buffer[:match_end.start()]
-                                    buffer = buffer[match_end.end():]
-                                    in_thought_block = False
-                                    
-                                    if thought_content.strip():
-                                        parts = thought_content.split("\n\n")
-                                        for part in parts:
-                                            if part.strip():
-                                                yield self._format_event(StreamEventType.THOUGHT, {
-                                                    "phase": "analyzing",
-                                                    "content": part.strip()
-                                                })
-                                    continue
-                                else:
-                                    # Support streaming thoughts
-                                    # Emit more frequently to reduce lag (on newline, period, or length)
-                                    should_emit = False
-                                    split_idx = -1
-                                    
-                                    if "\n" in buffer:
-                                        split_idx = buffer.find("\n")
-                                    elif ". " in buffer: # Space ensures we don't split "e.g." too aggressively
-                                        split_idx = buffer.find(". ")
-                                    elif len(buffer) > 100:
-                                        # Force emit if too long
-                                        split_idx = 99
-                                        
-                                    if split_idx != -1:
-                                        to_emit = buffer[:split_idx + 1] # Include the delimiter
-                                        buffer = buffer[split_idx + 1:]
-                                        
-                                        if to_emit.strip():
-                                            yield self._format_event(StreamEventType.THOUGHT, {
-                                                "phase": "analyzing",
-                                                "content": to_emit
-                                            })
-                                    break
+                        visible_content = self._strip_private_markup(content)
+                        if visible_content:
+                            yield self._format_event(StreamEventType.TOKEN, {
+                                "content": visible_content
+                            })
 
                 elif kind == "on_tool_start":
                     tool_name = event["name"]
                     tool_input = event["data"].get("input", {})
-                    display_name = TOOL_NAMES.get(tool_name, tool_name)
-                    
-                    thought_content = f"**Executing Action**\nI will use {display_name}..."
-                    if tool_name == "query_recommendations":
-                        bank = tool_input.get('bank') or 'all banks'
-                        asset = tool_input.get('asset_class') or 'assets'
-                        thought_content = f"**Executing Action**\nQuerying {display_name} for {bank} {asset} recommendations..."
-                    elif tool_name == "search_knowledge_base":
-                        query = tool_input.get('query') or 'extracted info'
-                        thought_content = f"**Executing Action**\nSearching {display_name} for: '{query}'..."
-                    elif tool_name == "web_search":
-                        query = tool_input.get('query') or 'news'
-                        thought_content = f"**Executing Action**\nSearching {display_name} for: '{query}'..."
+                    thought_content = self._build_tool_start_trace(tool_name, tool_input)
                         
                     yield self._format_event(StreamEventType.THOUGHT, {
                         "phase": "searching",
@@ -265,7 +148,9 @@ class AgentOrchestrator:
                 
                 elif kind == "on_tool_end":
                     # Parse output for sources
+                    tool_name = event["name"]
                     output = event["data"].get("output")
+                    source_count = 0
                     if output:
                         try:
                             data = json.loads(output)
@@ -273,14 +158,25 @@ class AgentOrchestrator:
                                 for item in data:
                                     if isinstance(item, dict) and "metadata" in item:
                                         collected_sources.append(item)
+                                        source_count += 1
                         except json.JSONDecodeError:
                             pass
+                    yield self._format_event(StreamEventType.THOUGHT, {
+                        "phase": "analyzing",
+                        "content": self._build_tool_end_trace(tool_name, source_count),
+                        "details": [{"tool": tool_name, "source_count": source_count}]
+                    })
 
                 elif kind == "on_chain_end" and event["name"] == "AgentExecutor":
                     result = event["data"].get("output")
                     if result and isinstance(result, dict) and "output" in result:
                         final_answer = result["output"]
-                        clean_answer = re.sub(r'<thought>.*?</thought>', '', final_answer, flags=re.DOTALL | re.IGNORECASE).strip()
+                        clean_answer = self._strip_private_markup(final_answer).strip()
+
+                        yield self._format_event(StreamEventType.THOUGHT, {
+                            "phase": "generating",
+                            "content": "Synthesizing answer."
+                        })
 
                         yield self._format_event(StreamEventType.COMPLETE, {
                             "answer": clean_answer,
@@ -302,6 +198,49 @@ class AgentOrchestrator:
     def _format_event(self, event_type: str, data: Dict[str, Any]) -> str:
         """Format data as SSE string."""
         return f"data: {json.dumps({'type': event_type, **data})}\n\n"
+
+    def _strip_private_markup(self, content: str) -> str:
+        """Remove private/planning markup if a model emits it despite the prompt."""
+        content = re.sub(
+            r"<thought>.*?</thought>",
+            "",
+            content,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        content = re.sub(r"</?thought>", "", content, flags=re.IGNORECASE)
+        content = re.sub(r"<function.*?>", "", content, flags=re.DOTALL | re.IGNORECASE)
+        return content
+
+    def _build_tool_start_trace(self, tool_name: str, tool_input: Dict[str, Any]) -> str:
+        display_name = TOOL_DISPLAY_NAMES.get(tool_name, tool_name)
+
+        if tool_name == "search_knowledge_base":
+            query = tool_input.get("query") or "the requested report context"
+            return f"Searching {display_name} for: '{query}'."
+
+        if tool_name == "query_internal_views":
+            asset = tool_input.get("asset_class") or "all asset classes"
+            return f"Querying {display_name} for {asset} views."
+
+        if tool_name == "get_analyst_intelligence":
+            analyst = tool_input.get("analyst_name")
+            sector = tool_input.get("sector")
+            target = analyst or sector or "matching analysts"
+            return f"Looking up {display_name} for {target}."
+
+        if tool_name == "web_search":
+            query = tool_input.get("query") or "market context"
+            return f"Searching {display_name} for: '{query}'."
+
+        return f"Running {display_name}."
+
+    def _build_tool_end_trace(self, tool_name: str, source_count: int) -> str:
+        display_name = TOOL_DISPLAY_NAMES.get(tool_name, tool_name)
+        if source_count == 1:
+            return f"Found 1 source from {display_name}."
+        if source_count > 1:
+            return f"Found {source_count} sources from {display_name}."
+        return f"Finished {display_name}."
 
 # Singleton
 _orchestrator: Optional[AgentOrchestrator] = None

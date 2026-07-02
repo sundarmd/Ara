@@ -136,11 +136,11 @@ Agent reasoning streamed via Server-Sent Events:
 
 | Event | Content | Display |
 |-------|---------|---------|
-| `thought` | Agent reasoning process | Thoughts Panel (collapsible) |
+| `thought` | Code-owned execution trace | Trace panel (collapsible) |
 | `token` | Response tokens | Main chat area |
 | `complete` | Final answer + citations | Message with source links |
 
-The Thoughts Panel provides full visibility into agent decision-making for enterprise auditability requirements.
+The trace panel shows tool execution and synthesis progress for enterprise auditability requirements.
 
 ---
 
