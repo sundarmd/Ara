@@ -10,7 +10,8 @@ A financial research assistant purpose-built for investment analysts. Powered by
 
 This Compose setup is for local development and demos. It bind-mounts the
 backend and frontend source trees into the containers, so the running app
-follows your working tree rather than an immutable production image.
+follows your working tree rather than an immutable production image. Treat it
+as a local development setup, not a reproducible production deployment profile.
 
 ```bash
 cp .env.template .env
@@ -203,7 +204,7 @@ The trace panel shows tool execution and synthesis progress for local traceabili
 | Structured Store | SQLite | Recommendations, analysts, documents |
 | OCR | Mistral OCR API | Structure-preserving PDF extraction |
 | Frontend | React + Vite + Tailwind + shadcn/ui | Streaming UI with citation hover |
-| Local Dev Runtime | Docker Compose | One-command local setup with source bind mounts |
+| Local Dev Runtime | Docker Compose | One-command local development setup with source bind mounts |
 
 ---
 
@@ -215,7 +216,7 @@ The trace panel shows tool execution and synthesis progress for local traceabili
 | **Verifiable AI Responses** | Page-level citations let analysts verify every claim against source documents. |
 | **Hybrid Retrieval** | Vector search for semantics, SQL for structured filters. Both needed for financial queries. |
 | **LangChain Tool Calling** | Tool-calling agent with structured specialist tools and inspectable execution traces. |
-| **One-Command Local Demo** | Docker Compose starts the app with local source bind mounts. No manual service wiring. |
+| **One-Command Local Development** | Docker Compose starts the app with local source bind mounts. Requires configured API keys and is not a production deployment profile. |
 
 ---
 
