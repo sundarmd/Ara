@@ -1,7 +1,9 @@
+import threading
 import unittest
 from unittest.mock import Mock, patch
 
 from fastapi import HTTPException
+from langchain_core.documents import Document
 
 import main
 from config.settings import settings
@@ -72,3 +74,62 @@ class ResearchVectorStoreStatsTests(unittest.TestCase):
             },
         )
 
+
+class ResearchVectorStoreSearchTests(unittest.IsolatedAsyncioTestCase):
+    async def test_search_runs_similarity_search_in_executor(self):
+        loop_thread_id = threading.get_ident()
+
+        class FakeVectorStore:
+            def __init__(self):
+                self.search_thread_id = None
+                self.search_kwargs = None
+
+            def similarity_search_with_score(self, query, k, filter):
+                self.search_thread_id = threading.get_ident()
+                self.search_kwargs = {
+                    "query": query,
+                    "k": k,
+                    "filter": filter,
+                }
+                return [
+                    (
+                        Document(
+                            id="chunk-1",
+                            page_content="Duration should rally.",
+                            metadata={"doc_id": "doc-1"},
+                        ),
+                        0.12,
+                    )
+                ]
+
+        fake_vector_store = FakeVectorStore()
+        store = object.__new__(ResearchVectorStore)
+        store.vectorstore = fake_vector_store
+
+        results = await store.search(
+            query="duration",
+            n_results=3,
+            filter_bank="GS",
+            filter_asset_class="rates",
+        )
+
+        self.assertNotEqual(fake_vector_store.search_thread_id, loop_thread_id)
+        self.assertEqual(
+            fake_vector_store.search_kwargs,
+            {
+                "query": "duration",
+                "k": 3,
+                "filter": {"bank": "GS", "asset_class": "rates"},
+            },
+        )
+        self.assertEqual(
+            results,
+            [
+                {
+                    "id": "chunk-1",
+                    "text": "Duration should rally.",
+                    "metadata": {"doc_id": "doc-1"},
+                    "distance": 0.12,
+                }
+            ],
+        )

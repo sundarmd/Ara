@@ -87,12 +87,15 @@ class ResearchVectorStore:
         if filter_asset_class:
             where_filter["asset_class"] = filter_asset_class
             
-        # Search
-        # LangChain Chroma returns (Document, score) tuples
-        docs_and_scores = self.vectorstore.similarity_search_with_score(
-            query,
-            k=n_results,
-            filter=where_filter if where_filter else None
+        # LangChain Chroma returns (Document, score) tuples.
+        loop = asyncio.get_running_loop()
+        docs_and_scores = await loop.run_in_executor(
+            None,
+            lambda: self.vectorstore.similarity_search_with_score(
+                query,
+                k=n_results,
+                filter=where_filter if where_filter else None,
+            ),
         )
         
         formatted_results = []
