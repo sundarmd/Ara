@@ -68,6 +68,20 @@ def _validate_spooled_pdf(upload_data: dict) -> Optional[str]:
     return None
 
 
+def _build_duplicate_upload_event(filename: str, existing_doc: Any) -> dict:
+    existing_name = existing_doc.filename or existing_doc.title or existing_doc.doc_id
+    return {
+        "file": filename,
+        "step": "duplicate",
+        "percent": 100,
+        "detail": f"Already indexed as {existing_name}",
+        "doc_id": existing_doc.doc_id,
+        "bank": existing_doc.bank,
+        "asset_class": existing_doc.asset_class,
+        "report_date": existing_doc.report_date,
+    }
+
+
 async def _spool_upload_file(upload_file: UploadFile, doc_id: str) -> dict:
     """Stream an UploadFile to disk while enforcing the configured size limit."""
     filename = upload_file.filename
@@ -208,6 +222,12 @@ async def upload_files(
             if validation_error:
                 _cleanup_spooled_file(stored_path)
                 yield f"data: {json.dumps({'file': filename, 'step': 'error', 'percent': 100, 'detail': validation_error})}\n\n"
+                continue
+
+            duplicate_doc = doc_store.check_duplicate(file_hash)
+            if duplicate_doc:
+                _cleanup_spooled_file(stored_path)
+                yield f"data: {json.dumps(_build_duplicate_upload_event(filename, duplicate_doc))}\n\n"
                 continue
             
             # Check for duplicate
