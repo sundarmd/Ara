@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from langchain_core.tools import tool
 
 from config.settings import settings
+from services.document_store import get_document_store
 from services.rag import search_documents  # RAG
 from services.recommendations import get_recommendation_store
 
@@ -77,11 +78,23 @@ async def search_knowledge_base(
             return "No relevant information found in knowledge base."
         
         tool_output = []
+        document_titles: Dict[str, str] = {}
         for i, r in enumerate(results):
             meta = r.get('metadata', {})
             doc_id = meta.get('doc_id')
             page = meta.get('page_start', 1)
             deep_link = f"{settings.API_BASE_URL}/documents/{doc_id}/file#page={page}" if doc_id else None
+            title = meta.get('title') or meta.get('filename') or 'Unknown Document'
+
+            if doc_id:
+                if doc_id not in document_titles:
+                    doc = get_document_store().get_document(doc_id)
+                    document_titles[doc_id] = (
+                        getattr(doc, "title", None)
+                        or getattr(doc, "filename", None)
+                        or title
+                    )
+                title = document_titles[doc_id]
 
             source_entry = {
                 "citation_id": citation_id(KB_CITATION_START, i),
@@ -89,7 +102,7 @@ async def search_knowledge_base(
                 "metadata": {
                     "bank": meta.get('bank', 'Unknown'),
                     "report_date": meta.get('report_date', 'N/A'),
-                    "title": meta.get('filename', 'Unknown Document'), 
+                    "title": title,
                     "page_start": page,
                     "page_end": page,
                     "url": deep_link
