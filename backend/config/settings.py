@@ -1,6 +1,8 @@
+import json
 import os
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
-from typing import Optional
+from typing import Optional, List
 
 
 class Settings(BaseSettings):
@@ -35,6 +37,38 @@ class Settings(BaseSettings):
     # API settings
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
+    CORS_ALLOWED_ORIGINS: List[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ]
+    )
+    CORS_ALLOW_CREDENTIALS: bool = False
+    CORS_ALLOWED_METHODS: List[str] = Field(
+        default_factory=lambda: ["GET", "POST", "DELETE", "OPTIONS"]
+    )
+    CORS_ALLOWED_HEADERS: List[str] = Field(
+        default_factory=lambda: ["Content-Type", "Authorization"]
+    )
+
+    @field_validator(
+        "CORS_ALLOWED_ORIGINS",
+        "CORS_ALLOWED_METHODS",
+        "CORS_ALLOWED_HEADERS",
+        mode="before",
+    )
+    @classmethod
+    def parse_csv_list(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return []
+            if value.startswith("["):
+                return json.loads(value)
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
     
     @property
     def API_BASE_URL(self) -> str:
