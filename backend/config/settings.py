@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     # API settings
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
+    ENVIRONMENT: str = "development"
+    ENABLE_DEBUG_ENDPOINTS: bool = False
     CORS_ALLOWED_ORIGINS: List[str] = Field(
         default_factory=lambda: [
             "http://localhost:3000",

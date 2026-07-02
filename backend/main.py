@@ -60,6 +60,12 @@ async def verify_api_key(api_key: Optional[str] = Depends(api_key_header)) -> No
         raise HTTPException(status_code=401, detail="Invalid API key")
 
 
+async def require_debug_endpoints_enabled() -> None:
+    if settings.ENABLE_DEBUG_ENDPOINTS:
+        return
+    raise HTTPException(status_code=404, detail="Debug endpoints are disabled")
+
+
 def _cleanup_spooled_file(stored_path: Optional[str]) -> None:
     if stored_path and os.path.exists(stored_path):
         os.remove(stored_path)
@@ -501,7 +507,7 @@ async def delete_document(doc_id: str):
     return deleted_items
 
 
-@app.get("/debug_search")
+@app.get("/debug_search", dependencies=[Depends(require_debug_endpoints_enabled)])
 async def debug_search(
     q: str = Query(..., description="Search query"),
     n_results: int = Query(5, description="Number of results to return"),
@@ -537,7 +543,7 @@ async def debug_search(
         )
 
 
-@app.get("/stats")
+@app.get("/stats", dependencies=[Depends(require_debug_endpoints_enabled)])
 async def get_stats():
     """Get statistics about the indexed documents."""
     try:
@@ -576,7 +582,7 @@ async def chat_stream_endpoint(request: ChatRequest):
     )
 
 
-@app.get("/debug_recommendations")
+@app.get("/debug_recommendations", dependencies=[Depends(require_debug_endpoints_enabled)])
 async def debug_recommendations(
     bank: Optional[str] = Query(None, description="Filter by bank"),
     asset_class: Optional[str] = Query(None, description="Filter by asset class"),
