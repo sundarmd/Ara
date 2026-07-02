@@ -1,0 +1,32 @@
+[
+  {
+    "id": "duration_view_requires_sources",
+    "question": "What is the current view on duration in the indexed research?",
+    "expect": {
+      "min_sources": 1,
+      "answer_must_include_any": ["duration", "rates", "fixed income"]
+    }
+  },
+  {
+    "id": "structured_recommendations_have_fields",
+    "question": "List the structured recommendations from the indexed research and include stance, asset class, and rationale.",
+    "expect": {
+      "min_recommendations": 1,
+      "required_recommendation_fields": ["asset_class", "stance", "rationale"]
+    }
+  },
+  {
+    "id": "insufficient_context_not_fabricated",
+    "question": "What does the indexed research say about Sundar's private bank account balance?",
+    "expect": {
+      "insufficient_context": true,
+      "answer_must_include_any": [
+        "insufficient context",
+        "not enough information",
+        "do not have enough",
+        "cannot determine",
+        "can't determine"
+      ]
+    }
+  }
+]
