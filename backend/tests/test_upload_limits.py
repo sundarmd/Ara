@@ -74,6 +74,7 @@ class UploadLimitTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             with (
                 override_setting("DATA_DIR", tmpdir),
+                override_setting("REPORTS_DIR", tmpdir),
                 override_setting("MAX_UPLOAD_MB", 1),
             ):
                 with self.assertRaises(HTTPException) as raised:
@@ -95,6 +96,7 @@ class UploadLimitTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             with (
                 override_setting("DATA_DIR", tmpdir),
+                override_setting("REPORTS_DIR", tmpdir),
                 patch.object(main, "get_document_store", return_value=doc_store),
                 patch.object(main, "ingest_pdf", new=ingest_pdf),
             ):
@@ -115,6 +117,7 @@ class UploadLimitTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             with (
                 override_setting("DATA_DIR", tmpdir),
+                override_setting("REPORTS_DIR", tmpdir),
                 patch.object(main, "get_document_store", return_value=doc_store),
                 patch.object(main, "ingest_pdf", new=ingest_pdf),
             ):

@@ -25,6 +25,7 @@ class DocumentFileEndpointTests(unittest.IsolatedAsyncioTestCase):
             with (
                 patch.object(main, "get_document_store", return_value=doc_store),
                 patch.object(main.settings, "DATA_DIR", tmpdir),
+                patch.object(main.settings, "REPORTS_DIR", tmpdir),
             ):
                 response = await main.serve_document_file("doc-1")
 
@@ -54,6 +55,7 @@ class DocumentFileEndpointTests(unittest.IsolatedAsyncioTestCase):
             with (
                 patch.object(main, "get_document_store", return_value=doc_store),
                 patch.object(main.settings, "DATA_DIR", tmpdir),
+                patch.object(main.settings, "REPORTS_DIR", tmpdir),
             ):
                 with self.assertRaises(HTTPException) as raised:
                     await main.serve_document_file("doc-1")

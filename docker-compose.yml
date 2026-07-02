@@ -13,8 +13,12 @@ services:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
+      - DATA_ROOT=/app/data
       - VECTOR_DB_DIR=/app/data/vector_store
       - DATA_DIR=/app/data/reports
+      - REPORTS_DIR=/app/data/reports
+      - DOCUMENTS_DB_PATH=/app/data/documents.db
+      - RECOMMENDATIONS_DB_PATH=/app/data/recommendations.db
       - IMAGES_DIR=/app/data/images
       - RECOMMENDATIONS_PATH=/app/data/recommendations.json
     networks:

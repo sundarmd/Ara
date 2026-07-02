@@ -183,8 +183,8 @@ The backend follows a **service-oriented architecture** with clear separation of
 **Data Stores:**
 - **Vector Store**: ChromaDB (persisted to `./data/vector_store`) via LangChain Chroma
 - **Document Metadata**: SQLite (`./data/documents.db`) for tracking uploaded files
-- **Recommendations**: SQLite table in same DB for structured investment stances
-- **Analysts**: SQLite table for internal analyst profiles
+- **Recommendations**: SQLite (`./data/recommendations.db`) for structured investment stances
+- **Analysts**: SQLite tables in `./data/recommendations.db` for internal analyst profiles
 
 **Key Services:**
 - `embeddings.py`: Mistral embeddings via LangChain
@@ -299,8 +299,8 @@ curl "http://localhost:8000/debug_recommendations?source_type=sell_side"
 All data persists in `./data/` directory:
 - `reports/`: Stored PDFs (named as `{doc_id}.pdf`)
 - `vector_store/`: ChromaDB embeddings and index
-- `documents.db`: SQLite database with tables:
-  - `documents`: File metadata and upload info
+- `documents.db`: SQLite database with the `documents` table for file metadata and upload info
+- `recommendations.db`: SQLite database with tables:
   - `recommendations`: Structured investment recommendations
   - `analysts`: Internal analyst profiles
 
@@ -319,7 +319,7 @@ All settings in `backend/config/settings.py` use Pydantic with environment varia
   - `RAG_SEARCH_RESULTS`: Number of chunks to retrieve (default: 8)
   - `RAG_CONTEXT_RECOMMENDATIONS`: Recommendations sent to agent (default: 15)
   - `TIMEOUT_*`: API timeout values
-  - `VECTOR_DB_DIR`, `DATA_DIR`: Storage paths
+  - `DATA_ROOT`, `REPORTS_DIR`, `VECTOR_DB_DIR`, `DOCUMENTS_DB_PATH`, `RECOMMENDATIONS_DB_PATH`: Storage paths
 
 ## Testing & Debugging
 

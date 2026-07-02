@@ -20,7 +20,11 @@ class Settings(BaseSettings):
     VECTOR_DB_DIR: str = "./data/vector_store"
     
     # Data storage settings
-    DATA_DIR: str = "./data/reports"
+    DATA_ROOT: str = "./data"
+    DATA_DIR: str = "./data/reports"  # Legacy report/PDF directory setting
+    REPORTS_DIR: Optional[str] = None
+    DOCUMENTS_DB_PATH: Optional[str] = None
+    RECOMMENDATIONS_DB_PATH: Optional[str] = None
     IMAGES_DIR: str = "./data/images"
     PROMPTS_DIR: str = "./prompts"
     RECOMMENDATIONS_PATH: str = "./data/recommendations.json"
@@ -37,6 +41,24 @@ class Settings(BaseSettings):
         """Construct base URL for deep links."""
         host = self.API_HOST if self.API_HOST != "0.0.0.0" else "localhost"
         return f"http://{host}:{self.API_PORT}"
+
+    @property
+    def reports_dir(self) -> str:
+        """Directory where uploaded source PDFs are stored."""
+        return self.REPORTS_DIR or self.DATA_DIR
+
+    @property
+    def documents_db_path(self) -> str:
+        """SQLite path for document metadata."""
+        return self.DOCUMENTS_DB_PATH or os.path.join(self.DATA_ROOT, "documents.db")
+
+    @property
+    def recommendations_db_path(self) -> str:
+        """SQLite path for recommendations and analyst intelligence."""
+        return self.RECOMMENDATIONS_DB_PATH or os.path.join(
+            self.DATA_ROOT,
+            "recommendations.db",
+        )
     
     # RAG settings
     RAG_SEARCH_RESULTS: int = 8
@@ -62,8 +84,13 @@ settings = Settings()
 
 def ensure_directories():
     """Create required directories if they don't exist."""
-    os.makedirs(settings.DATA_DIR, exist_ok=True)
+    os.makedirs(settings.DATA_ROOT, exist_ok=True)
+    os.makedirs(settings.reports_dir, exist_ok=True)
     os.makedirs(settings.VECTOR_DB_DIR, exist_ok=True)
     os.makedirs(settings.IMAGES_DIR, exist_ok=True)
     # Ensure parent directory for recommendations file exists
     os.makedirs(os.path.dirname(settings.RECOMMENDATIONS_PATH), exist_ok=True)
+    for db_path in (settings.documents_db_path, settings.recommendations_db_path):
+        db_dir = os.path.dirname(db_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)

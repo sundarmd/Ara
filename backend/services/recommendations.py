@@ -8,6 +8,7 @@ import json
 import os
 import uuid
 import sqlite3
+import shutil
 from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
 import httpx
@@ -47,8 +48,23 @@ class RecommendationStore:
     """
     
     def __init__(self, db_path: Optional[str] = None):
-        self.db_path = db_path or os.path.join(settings.DATA_DIR, "recommendations.db")
+        self.db_path = db_path or settings.recommendations_db_path
+        if db_path is None:
+            self._copy_legacy_db_if_needed()
         self._init_db()
+
+    def _copy_legacy_db_if_needed(self):
+        """Copy the pre-split reports/recommendations.db forward on first startup."""
+        legacy_db_path = os.path.join(settings.reports_dir, "recommendations.db")
+        if self.db_path == legacy_db_path:
+            return
+        if os.path.exists(self.db_path) or not os.path.exists(legacy_db_path):
+            return
+
+        db_dir = os.path.dirname(self.db_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+        shutil.copy2(legacy_db_path, self.db_path)
         
     def _init_db(self):
         """Initialize the database schema with migration support."""

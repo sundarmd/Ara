@@ -149,9 +149,9 @@ The Thoughts Panel provides full visibility into agent decision-making for enter
 ```
 ./data/
 ├── documents.db                    # Document metadata & deduplication
+├── recommendations.db              # Recommendations & Analysts
 ├── reports/
-│   ├── {doc_id}.pdf                # Original PDF files
-│   └── recommendations.db          # Recommendations & Analysts
+│   └── {doc_id}.pdf                # Original PDF files
 ├── images/{doc_id}/                # Extracted figures
 └── vector_store/                   # ChromaDB persistence
 ```
@@ -245,4 +245,3 @@ The Thoughts Panel provides full visibility into agent decision-making for enter
 - Observability (LangSmith tracing)
 
 </details>
-

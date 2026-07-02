@@ -85,12 +85,12 @@ def _build_duplicate_upload_event(filename: str, existing_doc: Any) -> dict:
 async def _spool_upload_file(upload_file: UploadFile, doc_id: str) -> dict:
     """Stream an UploadFile to disk while enforcing the configured size limit."""
     filename = upload_file.filename
-    stored_path = os.path.join(settings.DATA_DIR, f"{doc_id}.pdf")
+    stored_path = os.path.join(settings.reports_dir, f"{doc_id}.pdf")
     max_upload_bytes = int(settings.MAX_UPLOAD_MB * 1024 * 1024)
     total_bytes = 0
     file_hash = hashlib.sha256()
 
-    os.makedirs(settings.DATA_DIR, exist_ok=True)
+    os.makedirs(settings.reports_dir, exist_ok=True)
 
     try:
         with open(stored_path, "wb") as output:
@@ -239,7 +239,7 @@ async def upload_files(
                     v_store = get_vector_store()
                     v_store.delete_document(existing_doc.doc_id)
                     doc_store.delete_document(existing_doc.doc_id)
-                    old_path = os.path.join(settings.DATA_DIR, f"{existing_doc.doc_id}.pdf")
+                    old_path = os.path.join(settings.reports_dir, f"{existing_doc.doc_id}.pdf")
                     if os.path.exists(old_path):
                         os.remove(old_path)
                 except Exception as e:
@@ -358,7 +358,7 @@ async def serve_pdf(filename: str):
     if '/' in filename or '\\' in filename or '..' in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
 
-    file_path = os.path.join(settings.DATA_DIR, filename)
+    file_path = os.path.join(settings.reports_dir, filename)
 
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
@@ -374,14 +374,14 @@ async def serve_pdf(filename: str):
 async def serve_document_file(doc_id: str):
     """
     Serve a stored PDF by document ID.
-    Resolves metadata through DocumentStore before opening DATA_DIR/{doc_id}.pdf.
+    Resolves metadata through DocumentStore before opening reports_dir/{doc_id}.pdf.
     """
     doc_store = get_document_store()
     doc = doc_store.get_document(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    file_path = os.path.join(settings.DATA_DIR, f"{doc.doc_id}.pdf")
+    file_path = os.path.join(settings.reports_dir, f"{doc.doc_id}.pdf")
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -446,7 +446,7 @@ async def delete_document(doc_id: str):
     }
 
     # 1. Delete PDF file
-    pdf_path = os.path.join(settings.DATA_DIR, f"{doc_id}.pdf")
+    pdf_path = os.path.join(settings.reports_dir, f"{doc_id}.pdf")
     if os.path.exists(pdf_path):
         os.remove(pdf_path)
         deleted_items["pdf_deleted"] = True

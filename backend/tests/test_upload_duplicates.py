@@ -87,6 +87,7 @@ class UploadDuplicateTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             with (
                 override_setting("DATA_DIR", tmpdir),
+                override_setting("REPORTS_DIR", tmpdir),
                 patch.object(main, "get_document_store", return_value=doc_store),
                 patch.object(main, "get_vector_store", return_value=vector_store),
                 patch.object(main, "ingest_pdf", new=ingest_pdf),
@@ -131,6 +132,7 @@ class UploadDuplicateTests(unittest.IsolatedAsyncioTestCase):
             old_path.write_bytes(b"%PDF-1.4\nold content")
             with (
                 override_setting("DATA_DIR", tmpdir),
+                override_setting("REPORTS_DIR", tmpdir),
                 patch.object(main, "get_document_store", return_value=doc_store),
                 patch.object(main, "get_vector_store", return_value=vector_store),
                 patch.object(main, "ingest_pdf", new=ingest_pdf),

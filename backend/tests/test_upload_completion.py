@@ -77,6 +77,7 @@ class UploadCompletionTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             with (
                 override_setting("DATA_DIR", tmpdir),
+                override_setting("REPORTS_DIR", tmpdir),
                 patch.object(main, "get_document_store", return_value=doc_store),
                 patch.object(main, "ingest_pdf", new=AsyncMock(side_effect=ingest_pdf)),
             ):
