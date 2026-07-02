@@ -1,5 +1,5 @@
 from typing import Literal, Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ReportMetadata(BaseModel):
@@ -45,7 +45,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     """Request for chat endpoint."""
-    messages: List[ChatMessage]
+    messages: List[ChatMessage] = Field(..., min_length=1)
     bank: Optional[str] = None  # Optional filter
     asset_class: Optional[str] = None  # Optional filter
 
