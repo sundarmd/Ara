@@ -3,12 +3,14 @@ import uuid
 import hashlib
 import logging
 import json
+import secrets
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.security import APIKeyHeader
 import uvicorn
 
 from config.settings import settings, ensure_directories
@@ -41,6 +43,21 @@ logging.basicConfig(level=logging.INFO, handlers=[handler])
 UPLOAD_READ_CHUNK_SIZE = 1024 * 1024
 PDF_MAGIC_HEADER = b"%PDF-"
 PDF_CONTENT_TYPES = {"application/pdf", "application/x-pdf"}
+api_key_header = APIKeyHeader(name=settings.API_KEY_HEADER_NAME, auto_error=False)
+
+
+async def verify_api_key(api_key: Optional[str] = Depends(api_key_header)) -> None:
+    if not settings.REQUIRE_API_KEY:
+        return
+
+    if not settings.API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="API key auth is enabled but API_KEY is not configured",
+        )
+
+    if not api_key or not secrets.compare_digest(api_key, settings.API_KEY):
+        raise HTTPException(status_code=401, detail="Invalid API key")
 
 
 def _cleanup_spooled_file(stored_path: Optional[str]) -> None:
@@ -416,7 +433,7 @@ async def list_documents():
     }
 
 
-@app.delete("/documents/{doc_id}")
+@app.delete("/documents/{doc_id}", dependencies=[Depends(verify_api_key)])
 async def delete_document(doc_id: str):
     """
     Completely delete a document and all associated data.

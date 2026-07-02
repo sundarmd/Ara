@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     CORS_ALLOWED_HEADERS: List[str] = Field(
         default_factory=lambda: ["Content-Type", "Authorization"]
     )
+    REQUIRE_API_KEY: bool = False
+    API_KEY: Optional[str] = None
+    API_KEY_HEADER_NAME: str = "X-API-Key"
 
     @field_validator(
         "CORS_ALLOWED_ORIGINS",
