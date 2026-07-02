@@ -1,5 +1,6 @@
 import os
 import uuid
+import hashlib
 import logging
 import json
 from typing import Optional, List, Dict, Any
@@ -36,6 +37,48 @@ logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
 handler.setFormatter(JsonFormatter())
 logging.basicConfig(level=logging.INFO, handlers=[handler])
+
+UPLOAD_READ_CHUNK_SIZE = 1024 * 1024
+
+
+async def _spool_upload_file(upload_file: UploadFile, doc_id: str) -> dict:
+    """Stream an UploadFile to disk while enforcing the configured size limit."""
+    filename = upload_file.filename
+    stored_path = os.path.join(settings.DATA_DIR, f"{doc_id}.pdf")
+    max_upload_bytes = int(settings.MAX_UPLOAD_MB * 1024 * 1024)
+    total_bytes = 0
+    file_hash = hashlib.sha256()
+
+    os.makedirs(settings.DATA_DIR, exist_ok=True)
+
+    try:
+        with open(stored_path, "wb") as output:
+            while True:
+                chunk = await upload_file.read(UPLOAD_READ_CHUNK_SIZE)
+                if not chunk:
+                    break
+
+                total_bytes += len(chunk)
+                if total_bytes > max_upload_bytes:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Upload exceeds {settings.MAX_UPLOAD_MB:g} MB limit",
+                    )
+
+                file_hash.update(chunk)
+                output.write(chunk)
+    except Exception:
+        if os.path.exists(stored_path):
+            os.remove(stored_path)
+        raise
+
+    return {
+        "doc_id": doc_id,
+        "filename": filename,
+        "stored_path": stored_path,
+        "file_hash": file_hash.hexdigest(),
+        "size_bytes": total_bytes,
+    }
 
 # Lifespan Context Manager
 @asynccontextmanager
@@ -107,14 +150,24 @@ async def upload_files(
     if not full_file_list:
         raise HTTPException(status_code=400, detail="No file provided")
 
-    # Read all files into memory immediately to avoid "closed file" errors in StreamingResponse
+    if len(full_file_list) > settings.MAX_UPLOAD_FILES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many files; maximum is {settings.MAX_UPLOAD_FILES}",
+        )
+
+    # Spool files to disk before StreamingResponse so UploadFile handles can close safely.
     file_data = []
-    for f in full_file_list:
-        content = await f.read()
-        file_data.append({
-            "filename": f.filename,
-            "content": content
-        })
+    try:
+        for f in full_file_list:
+            doc_id = str(uuid.uuid4())
+            file_data.append(await _spool_upload_file(f, doc_id))
+    except Exception:
+        for item in file_data:
+            stored_path = item.get("stored_path")
+            if stored_path and os.path.exists(stored_path):
+                os.remove(stored_path)
+        raise
 
     async def generate():
         doc_store = get_document_store()
@@ -122,15 +175,18 @@ async def upload_files(
         
         for idx, item in enumerate(file_data):
             filename = item["filename"] or f"file_{idx}"
-            contents = item["content"]
+            doc_id = item["doc_id"]
+            stored_path = item["stored_path"]
+            file_hash = item["file_hash"]
             
             # Validate file type
             if not filename.lower().endswith(".pdf"):
+                if os.path.exists(stored_path):
+                    os.remove(stored_path)
                 yield f"data: {json.dumps({'file': filename, 'step': 'error', 'percent': 100, 'detail': 'Only PDF files supported'})}\n\n"
                 continue
             
             # Check for duplicate
-            file_hash = DocumentStore.compute_hash(contents)
             existing_doc = doc_store.get_document_by_filename(filename)
             
             if existing_doc:
@@ -144,16 +200,8 @@ async def upload_files(
                         os.remove(old_path)
                 except Exception as e:
                     logger.warning(f"Cleanup failed for {filename}: {e}")
-
-            # Prepare for Ingestion
-            doc_id = str(uuid.uuid4())
-            stored_path = os.path.join(settings.DATA_DIR, f"{doc_id}.pdf")
             
             try:
-                os.makedirs(settings.DATA_DIR, exist_ok=True)
-                with open(stored_path, "wb") as f:
-                    f.write(contents)
-                
                 # --- Queue-based Streaming Implementation ---
                 import asyncio
                 queue = asyncio.Queue()
@@ -198,7 +246,6 @@ async def upload_files(
                 
                 if result.get("status") == "success":
                     # Record in document store
-                    file_hash = DocumentStore.compute_hash(contents)
                     doc_store.add_document(
                         doc_id=doc_id,
                         file_hash=file_hash,

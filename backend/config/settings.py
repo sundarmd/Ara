@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     IMAGES_DIR: str = "./data/images"
     PROMPTS_DIR: str = "./prompts"
     RECOMMENDATIONS_PATH: str = "./data/recommendations.json"
+    MAX_UPLOAD_MB: float = 50.0
+    MAX_UPLOAD_FILES: int = 5
 
     
     # API settings
