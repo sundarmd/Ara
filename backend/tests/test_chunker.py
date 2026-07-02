@@ -45,3 +45,50 @@ class ChunkerTests(unittest.TestCase):
         self.assertEqual(set(chunk.segment_types), {"heading", "body", "table"})
         self.assertIn("| Tenor | View |", chunk.text)
         self.assertEqual(chunk.section, "Rates Strategy")
+
+    def test_heading_starts_new_section_scoped_chunk(self):
+        segments = [
+            Segment(
+                doc_id="doc-1",
+                page=1,
+                segment_type="heading",
+                section=None,
+                text="Rates Strategy",
+            ),
+            Segment(
+                doc_id="doc-1",
+                page=1,
+                segment_type="body",
+                section="Rates Strategy",
+                text="Duration can rally as growth slows.",
+            ),
+            Segment(
+                doc_id="doc-1",
+                page=1,
+                segment_type="heading",
+                section="Rates Strategy",
+                text="FX Strategy",
+            ),
+            Segment(
+                doc_id="doc-1",
+                page=1,
+                segment_type="body",
+                section="FX Strategy",
+                text="The dollar can weaken as rate spreads compress.",
+            ),
+        ]
+
+        chunks = build_chunks(
+            doc_id="doc-1",
+            bank="GS",
+            asset_class="macro",
+            report_date="2026-01-01",
+            segments=segments,
+        )
+
+        self.assertEqual(len(chunks), 2)
+        self.assertEqual(chunks[0].section, "Rates Strategy")
+        self.assertIn("Duration can rally", chunks[0].text)
+        self.assertNotIn("FX Strategy", chunks[0].text)
+        self.assertEqual(chunks[1].section, "FX Strategy")
+        self.assertIn("The dollar can weaken", chunks[1].text)

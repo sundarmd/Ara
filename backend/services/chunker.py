@@ -86,16 +86,22 @@ def build_chunks(
             continue
 
         seg_tokens = _get_token_length(seg_text)
-        
+
+        if seg.segment_type == "heading":
+            if current_text_parts:
+                flush_chunk()
+            current_section = seg_text
+        elif seg.section and seg.section != current_section:
+            if current_text_parts:
+                flush_chunk()
+            current_section = seg.section
+
         # Start new chunk if adding this segment would exceed MAX_TOKENS_PER_CHUNK
         # But if the segment itself is huge (larger than max), we still have to add it (or split it further, 
         # but for now we'll just accept oversized chunks for simplicity rather than split mid-sentence).
         # We only flush if we have existing content.
         if (current_token_count + seg_tokens > MAX_TOKENS_PER_CHUNK) and len(current_text_parts) >= 1:
             flush_chunk()
-
-        # Track section if/when we start detecting it; for now None
-        current_section = current_section or seg.section
 
         current_text_parts.append(seg_text)
         current_pages.append(seg.page)
@@ -113,9 +119,10 @@ def build_chunks(
             if chunk_tokens < MIN_TOKENS_PER_CHUNK:
                 prev = merged[-1]
                 prev_tokens = _get_token_length(prev.text)
+                same_section = prev.section == chunk.section
                 
                 # Check if merging keeps us within reasonable bounds (e.g. 1.2x limit)
-                if prev_tokens + chunk_tokens <= MAX_TOKENS_PER_CHUNK * 1.2:
+                if same_section and prev_tokens + chunk_tokens <= MAX_TOKENS_PER_CHUNK * 1.2:
                     combined_text = prev.text + "\n\n" + chunk.text
                     
                     # Create new chunk with merged data
