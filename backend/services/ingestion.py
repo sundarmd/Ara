@@ -99,8 +99,8 @@ async def ingest_pdf(
                 title = title or metadata.title
             else:
                 # Fallback defaults
-                bank = bank or (title if title else "UNKNOWN")
-                asset_class = asset_class or "multi_asset"
+                bank = bank or "UNKNOWN"
+                asset_class = asset_class or "unknown"
                 report_date = report_date or "UNKNOWN"
                 
         # Update result with final metadata

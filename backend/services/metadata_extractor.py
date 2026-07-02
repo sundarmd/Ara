@@ -56,8 +56,8 @@ async def extract_metadata_from_content(text: str) -> Optional[DocumentMetadata]
         )
         
         # Validate required fields
-        bank = parsed.get("bank", "UNKNOWN")
-        asset_class = parsed.get("asset_class", "UNKNOWN")
+        bank = parsed.get("bank") or "UNKNOWN"
+        asset_class = parsed.get("asset_class") or "UNKNOWN"
         report_date = parsed.get("report_date") or "UNKNOWN"
         title = parsed.get("title")
         
@@ -65,9 +65,9 @@ async def extract_metadata_from_content(text: str) -> Optional[DocumentMetadata]
             logger.warning(f"Incomplete metadata extraction: bank={bank}, asset_class={asset_class}, date={report_date}")
             # Still return what we have, use defaults for unknowns
             if bank == "UNKNOWN":
-                bank = "OTHER"
+                bank = "UNKNOWN"
             if asset_class == "UNKNOWN":
-                asset_class = "multi_asset"
+                asset_class = "unknown"
             if report_date == "UNKNOWN":
                 report_date = "UNKNOWN"
         
