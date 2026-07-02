@@ -13,7 +13,6 @@ import uvicorn
 
 from config.settings import settings, ensure_directories
 from services.ingestion import ingest_pdf
-from services.embeddings import get_embedding_client
 from services.recommendations import get_recommendation_store
 from services.chat import stream_chat_rag
 from services.document_store import get_document_store, DocumentStore
@@ -357,15 +356,10 @@ async def debug_search(
     Returns top-k chunks matching the query.
     """
     try:
-        # Get embedding for query
-        embedding_client = get_embedding_client()
-        query_embeddings = await embedding_client.embed_batch([q])
-        query_embedding = query_embeddings[0]
-        
         # Search vector store
         store = get_vector_store()
         results = await store.search(
-            query_embedding=query_embedding,
+            query=q,
             n_results=n_results,
             filter_bank=bank,
             filter_asset_class=asset_class,
