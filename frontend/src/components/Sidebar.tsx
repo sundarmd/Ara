@@ -1,17 +1,16 @@
 import { useState, useEffect } from 'react';
-import type { ComponentType } from 'react';
-import type { IconProps } from '@phosphor-icons/react';
+import type { LucideIcon } from 'lucide-react';
 import {
-    Books,
-    CaretDown,
-    FilePdf,
-    GithubLogo,
+    BookOpen,
+    ChevronDown,
+    FileText,
+    Github,
     Moon,
-    SidebarSimple,
-    Sparkle,
+    PanelLeft,
+    Sparkles,
     Sun,
-    Trash,
-} from '@phosphor-icons/react';
+    Trash2,
+} from 'lucide-react';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { api } from '../services/api';
 import { Button } from '@/components/ui/button';
@@ -103,7 +102,7 @@ export function Sidebar() {
                                         onClick={toggleSidebar}
                                         className="h-10 w-10 shrink-0 rounded-[14px] text-[hsl(var(--sidebar-muted))] transition-all duration-200 hover:bg-[hsl(var(--sidebar-panel))] hover:text-[hsl(var(--sidebar-foreground))] active:scale-[0.96]"
                                     >
-                                        <SidebarSimple size={20} weight="duotone" />
+                                        <PanelLeft size={20} />
                                         <span className="sr-only">Close Sidebar</span>
                                     </Button>
                                 </TooltipTrigger>
@@ -130,7 +129,7 @@ export function Sidebar() {
                                         </div>
                                     </div>
 
-                                    <SidebarSimple size={20} weight="duotone" className="scale-90 opacity-0 transition-all duration-200 group-hover:scale-100 group-hover:opacity-100" />
+                                    <PanelLeft size={20} className="scale-90 opacity-0 transition-all duration-200 group-hover:scale-100 group-hover:opacity-100" />
                                     <span className="sr-only">Open Sidebar</span>
                                 </Button>
                             </TooltipTrigger>
@@ -151,7 +150,7 @@ export function Sidebar() {
                         />
 
                         <SidebarButton
-                            icon={GithubLogo}
+                            icon={Github}
                             label="GitHub Repo"
                             href="https://github.com/sundarmd/Ara"
                             target="_blank"
@@ -172,16 +171,15 @@ export function Sidebar() {
                                             className="group h-11 w-full justify-between rounded-[15px] px-3 text-[hsl(var(--sidebar-muted))] transition-all duration-200 hover:bg-[hsl(var(--sidebar-panel))] hover:text-[hsl(var(--sidebar-foreground))] active:scale-[0.99]"
                                         >
                                             <div className="flex min-w-0 items-center gap-3">
-                                                <Books size={19} weight="duotone" className="shrink-0" />
+                                                <BookOpen size={19} className="shrink-0" />
                                                 <span className="truncate text-sm font-medium">Knowledge Base</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="rounded-full border border-[hsl(var(--sidebar-border))] px-2 py-0.5 text-[11px] font-semibold text-[hsl(var(--sidebar-muted))]">
                                                     {documents.length}
                                                 </span>
-                                                <CaretDown
+                                                <ChevronDown
                                                     size={14}
-                                                    weight="bold"
                                                     className={cn(
                                                         "transition-transform duration-200",
                                                         !isSourcesOpen && "-rotate-90"
@@ -195,7 +193,7 @@ export function Sidebar() {
                                             {documents.length === 0 ? (
                                                 <div className="rounded-[14px] border border-dashed border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-panel))] px-3 py-3">
                                                     <div className="flex items-start gap-2 text-[hsl(var(--sidebar-muted))]">
-                                                        <Sparkle size={16} weight="duotone" className="mt-0.5 shrink-0 text-primary" />
+                                                        <Sparkles size={16} className="mt-0.5 shrink-0 text-primary" />
                                                         <div>
                                                             <p className="text-xs font-medium text-[hsl(var(--sidebar-foreground))]">No files uploaded</p>
                                                             <p className="mt-1 text-[11px] leading-4">Drop research PDFs anywhere in the app.</p>
@@ -214,7 +212,7 @@ export function Sidebar() {
                                                             rel="noopener noreferrer"
                                                             className="flex min-w-0 flex-1 items-center gap-2 text-[hsl(var(--sidebar-muted))] transition-colors hover:text-[hsl(var(--sidebar-foreground))]"
                                                         >
-                                                            <FilePdf size={16} weight="duotone" className="shrink-0" />
+                                                            <FileText size={16} className="shrink-0" />
                                                             <span className="truncate text-sm font-medium">{doc.filename}</span>
                                                         </a>
                                                         <button
@@ -227,7 +225,7 @@ export function Sidebar() {
                                                             className="shrink-0 rounded-lg p-1 text-[hsl(var(--sidebar-muted))] opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100 active:scale-[0.94]"
                                                             title="Delete document"
                                                         >
-                                                            <Trash size={15} weight="duotone" />
+                                                            <Trash2 size={15} />
                                                         </button>
                                                     </div>
                                                 ))
@@ -239,7 +237,7 @@ export function Sidebar() {
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <div className="flex h-11 w-11 cursor-default items-center justify-center rounded-[15px] text-[hsl(var(--sidebar-muted))] transition-colors hover:bg-[hsl(var(--sidebar-panel))] hover:text-[hsl(var(--sidebar-foreground))]">
-                                            <Books size={21} weight="duotone" />
+                                            <BookOpen size={21} />
                                         </div>
                                     </TooltipTrigger>
                                     <TooltipContent side="right">
@@ -261,7 +259,7 @@ export function Sidebar() {
     );
 }
 
-type SidebarIcon = ComponentType<IconProps>;
+type SidebarIcon = LucideIcon;
 
 interface SidebarButtonProps {
     icon: SidebarIcon;
@@ -278,7 +276,7 @@ interface SidebarButtonProps {
 function SidebarButton({ icon: Icon, label, isOpen, href, target, rel, className, onClick, disabled }: SidebarButtonProps) {
     const content = (
         <>
-            <Icon size={19} weight="duotone" className="shrink-0" />
+            <Icon size={19} className="shrink-0" />
             {isOpen && <span className="truncate text-sm font-medium">{label}</span>}
         </>
     );

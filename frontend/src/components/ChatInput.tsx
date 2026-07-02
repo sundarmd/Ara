@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react';
-import { ArrowUp, CircleNotch, Paperclip } from '@phosphor-icons/react';
+import { ArrowUp, Loader2, Paperclip } from 'lucide-react';
 import { useDocuments } from '../contexts/DocumentsContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -81,9 +81,9 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Ask a quest
                 title="Attach PDF"
             >
                 {isUploading ? (
-                    <CircleNotch size={20} weight="bold" className="animate-spin" />
+                    <Loader2 size={20} className="animate-spin" />
                 ) : (
-                    <Paperclip size={20} weight="duotone" />
+                    <Paperclip size={20} />
                 )}
             </Button>
 
@@ -111,7 +111,7 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Ask a quest
                 )}
                 aria-label="Send"
             >
-                <ArrowUp size={20} weight="bold" />
+                <ArrowUp size={20} />
             </Button>
         </div>
     );
