@@ -138,7 +138,19 @@ export function useChat(): UseChatReturn {
 
                     case 'error':
                         setError(event.message);
-                        break;
+                        setIsThinking(false);
+                        setMessages((prev) =>
+                            prev.map((m) =>
+                                m.id === assistantId
+                                    ? {
+                                        ...m,
+                                        content: event.message,
+                                        thoughts: [...accumulatedThoughts],
+                                    }
+                                    : m
+                            )
+                        );
+                        return;
                 }
             }
 
