@@ -32,10 +32,10 @@ function DistinctSourceList({ sources }: { sources: Source[] }) {
         return Array.from(unique.values());
     }, [sources]);
 
-    if (distinctSources.length === 0) return null;
-
     // Collapsible state
     const [isOpen, setIsOpen] = useState(false);
+
+    if (distinctSources.length === 0) return null;
 
     return (
         <div className="mt-6 pt-4 border-t">
