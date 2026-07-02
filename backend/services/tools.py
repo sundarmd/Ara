@@ -2,6 +2,7 @@
 Tool definitions for the Agent Orchestrator.
 Exposes specific capabilities as callable functions with schemas.
 """
+import asyncio
 import logging
 from contextvars import ContextVar, Token
 from typing import List, Optional, Dict, Any, Annotated
@@ -224,7 +225,11 @@ async def web_search(query: str) -> str:
     try:
         tavily = TavilyClient(api_key=settings.TAVILY_API_KEY)
         # Deep search for better quality
-        response = tavily.search(query=query, search_depth="basic", max_results=3)
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: tavily.search(query=query, search_depth="basic", max_results=3),
+        )
         
         results = response.get("results", [])
         if not results:

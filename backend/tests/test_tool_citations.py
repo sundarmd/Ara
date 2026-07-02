@@ -1,4 +1,5 @@
 import json
+import threading
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
@@ -102,3 +103,47 @@ class ToolCitationTests(unittest.IsolatedAsyncioTestCase):
         sources = json.loads(output)
         self.assertEqual([source["citation_id"] for source in sources], [300, 301])
 
+    async def test_web_search_runs_tavily_search_in_executor(self):
+        loop_thread_id = threading.get_ident()
+
+        class FakeTavilyClient:
+            instances = []
+
+            def __init__(self, api_key):
+                self.api_key = api_key
+                self.search_thread_id = None
+                self.search_kwargs = None
+                self.__class__.instances.append(self)
+
+            def search(self, query, search_depth, max_results):
+                self.search_thread_id = threading.get_ident()
+                self.search_kwargs = {
+                    "query": query,
+                    "search_depth": search_depth,
+                    "max_results": max_results,
+                }
+                return {
+                    "results": [
+                        {
+                            "title": "Market update",
+                            "content": "Markets moved higher after central bank guidance.",
+                            "url": "https://example.com/markets",
+                        }
+                    ]
+                }
+
+        with (
+            patch.object(tools.settings, "TAVILY_API_KEY", "tvly-test"),
+            patch.object(tools, "TavilyClient", FakeTavilyClient),
+        ):
+            output = await tools.web_search.ainvoke({"query": "markets"})
+
+        tavily_client = FakeTavilyClient.instances[0]
+        self.assertNotEqual(tavily_client.search_thread_id, loop_thread_id)
+        self.assertEqual(tavily_client.search_kwargs, {
+            "query": "markets",
+            "search_depth": "basic",
+            "max_results": 3,
+        })
+        sources = json.loads(output)
+        self.assertEqual([source["citation_id"] for source in sources], [300])
