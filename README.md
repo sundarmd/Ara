@@ -33,11 +33,15 @@ docker compose up -d
 
 | Capability | What You Get | Business Impact |
 |------------|--------------|-----------------|
-| **Inline Citations with PDF Deep Links** | Every claim traced to source: `[1]` opens `report.pdf#page=7` | Full auditability. Analysts verify AI responses against original documents in one click. |
+| **Inline Citations with PDF Deep Links** | Every claim traced to source: `[1]` opens `report.pdf#page=7` | Designed for traceable answers in a local reference implementation. Analysts verify AI responses against original documents in one click. |
 | **Document Structure Preservation** | Tables, figures, and headings kept intact during processing | Zero data loss. Financial tables render correctly. No broken charts or split rows. |
 | **Structured Recommendation Extraction** | Raw reports parsed into queryable `{asset, stance, confidence, bank, date}` | Enables "Show all Overweight calls on Tech" - queries impossible with standard RAG. |
 | **Tool-Calling Orchestration** | One LangChain orchestrator selects specialist tools based on query context | Flexible answers across PDFs, structured recommendations, analyst profiles, and web search. |
-| **Real-Time Execution Transparency** | Tool-selection and response-generation traces streamed live via SSE | Enterprise-grade auditability. See which tools were used and why. |
+| **Real-Time Execution Transparency** | Tool-selection and response-generation traces streamed live via SSE | Designed for traceable answers in a local reference implementation. See which tools were used and why. |
+
+---
+
+This is not an enterprise audit system. A production enterprise deployment would need authentication and RBAC, durable audit logs, stable citation/trace IDs, eval gates in CI, monitoring, rate limiting, and a security review.
 
 ---
 
@@ -144,7 +148,7 @@ Agent reasoning streamed via Server-Sent Events:
 | `token` | Response tokens | Main chat area |
 | `complete` | Final answer + citations | Message with source links |
 
-The trace panel shows tool execution and synthesis progress for enterprise auditability requirements.
+The trace panel shows tool execution and synthesis progress for local traceability during development and demos.
 
 ---
 
@@ -210,7 +214,7 @@ The trace panel shows tool execution and synthesis progress for enterprise audit
 | **Document Structure Preservation** | Tables and figures kept intact. Financial reports have structure that matters. |
 | **Verifiable AI Responses** | Page-level citations let analysts verify every claim against source documents. |
 | **Hybrid Retrieval** | Vector search for semantics, SQL for structured filters. Both needed for financial queries. |
-| **LangChain Tool Calling** | Tool-calling agent with structured specialist tools and auditable execution traces. |
+| **LangChain Tool Calling** | Tool-calling agent with structured specialist tools and inspectable execution traces. |
 | **One-Command Local Demo** | Docker Compose starts the app with local source bind mounts. No manual service wiring. |
 
 ---
