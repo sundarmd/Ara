@@ -64,6 +64,32 @@ class DocumentFileEndpointTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(raised.exception.detail, "File not found")
 
 
+class DocumentFileRouteTests(unittest.TestCase):
+    def test_legacy_filename_file_route_is_not_registered(self):
+        route_paths = {
+            (getattr(route, "path", None), method)
+            for route in main.app.routes
+            for method in getattr(route, "methods", set())
+        }
+
+        self.assertNotIn(("/files/{filename}", "GET"), route_paths)
+
+    def test_document_file_route_has_api_key_dependency(self):
+        document_file_route = next(
+            route
+            for route in main.app.routes
+            if getattr(route, "path", None) == "/documents/{doc_id}/file"
+            and "GET" in getattr(route, "methods", set())
+        )
+
+        self.assertTrue(
+            any(
+                dependency.call is main.verify_api_key
+                for dependency in document_file_route.dependant.dependencies
+            )
+        )
+
+
 class DocumentDeleteEndpointTests(unittest.IsolatedAsyncioTestCase):
     async def test_delete_document_surfaces_vector_delete_failure(self):
         doc_store = Mock()

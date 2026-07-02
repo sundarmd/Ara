@@ -367,33 +367,7 @@ async def upload_files(
     )
 
 
-@app.get("/files/{filename}")
-async def serve_pdf(filename: str):
-    """
-    Serve uploaded PDF files from the data directory.
-    Supports deep linking to specific pages via #page= fragment.
-    """
-    # Security: Only allow PDF files
-    if not filename.endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported")
-
-    # Prevent directory traversal attacks
-    if '/' in filename or '\\' in filename or '..' in filename:
-        raise HTTPException(status_code=400, detail="Invalid filename")
-
-    file_path = os.path.join(settings.reports_dir, filename)
-
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
-
-    return FileResponse(
-        path=file_path,
-        media_type="application/pdf",
-        headers={"Content-Disposition": "inline"}
-    )
-
-
-@app.get("/documents/{doc_id}/file")
+@app.get("/documents/{doc_id}/file", dependencies=[Depends(verify_api_key)])
 async def serve_document_file(doc_id: str):
     """
     Serve a stored PDF by document ID.
@@ -408,6 +382,7 @@ async def serve_document_file(doc_id: str):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
 
+    logger.info(f"Document file served: doc_id={doc.doc_id}, filename={doc.filename}")
     return FileResponse(
         path=file_path,
         media_type="application/pdf",
