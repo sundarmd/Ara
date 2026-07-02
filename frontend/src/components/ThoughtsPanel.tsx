@@ -123,8 +123,8 @@ export function ThoughtsPanel({ thoughts, isThinking, startTime }: ThoughtsPanel
                                 >
                                     <ReactMarkdown
                                         components={{
-                                            p: ({ node, ...props }) => <span {...props} />,
-                                            strong: ({ node, ...props }) => <span {...props} className="font-semibold text-[var(--color-text)]" />
+                                            p: ({ node: _node, ...props }) => <span {...props} />,
+                                            strong: ({ node: _node, ...props }) => <span {...props} className="font-semibold text-[var(--color-text)]" />
                                         }}
                                     >
                                         {thought.content}

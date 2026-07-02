@@ -135,25 +135,25 @@ function ContentWithCitations({ content, sources: _sources }: { content: string;
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                    p: ({ node, ...props }) => <p {...props} className="mb-4 last:mb-0" />,
-                    table: ({ node, ...props }) => (
+                    p: ({ node: _node, ...props }) => <p {...props} className="mb-4 last:mb-0" />,
+                    table: ({ node: _node, ...props }) => (
                         <div className="overflow-x-auto my-4">
                             <table {...props} className="w-full border-collapse border border-border text-sm" />
                         </div>
                     ),
-                    thead: ({ node, ...props }) => (
+                    thead: ({ node: _node, ...props }) => (
                         <thead {...props} className="bg-muted/50" />
                     ),
-                    th: ({ node, ...props }) => (
+                    th: ({ node: _node, ...props }) => (
                         <th {...props} className="border border-border px-3 py-2 text-left font-semibold text-foreground" />
                     ),
-                    td: ({ node, ...props }) => (
+                    td: ({ node: _node, ...props }) => (
                         <td {...props} className="border border-border px-3 py-2 text-muted-foreground" />
                     ),
-                    tr: ({ node, ...props }) => (
+                    tr: ({ node: _node, ...props }) => (
                         <tr {...props} className="hover:bg-muted/30 transition-colors" />
                     ),
-                    a: ({ node, href, children, ...props }) => {
+                    a: ({ node: _node, href, children, ...props }) => {
                         if (href?.startsWith('#citation-')) {
                             const ids = href.replace('#citation-', '').split(',').map(Number);
 
