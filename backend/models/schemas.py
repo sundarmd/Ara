@@ -79,6 +79,7 @@ class Recommendation(BaseModel):
     rationale: str
     page: Optional[int] = None
     section: Optional[str] = None
+    confidence: Optional[str] = None
     date: Optional[str] = None
 
 
@@ -119,4 +120,3 @@ class ErrorEvent(BaseModel):
     type: Literal["error"] = "error"
     message: str
     code: Optional[str] = None
-

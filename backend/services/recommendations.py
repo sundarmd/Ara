@@ -73,6 +73,18 @@ class RecommendationStore:
                 if 'sub_asset_class' in columns and 'sub_asset' not in columns:
                     logger.info("Migrating recommendations table: sub_asset_class -> sub_asset")
                     conn.execute("ALTER TABLE recommendations RENAME COLUMN sub_asset_class TO sub_asset")
+                    columns[columns.index('sub_asset_class')] = 'sub_asset'
+
+                missing_columns = {
+                    "page": "INTEGER",
+                    "section": "TEXT",
+                    "confidence": "TEXT",
+                }
+                for column_name, column_type in missing_columns.items():
+                    if column_name not in columns:
+                        logger.info(f"Adding recommendations.{column_name} column")
+                        conn.execute(f"ALTER TABLE recommendations ADD COLUMN {column_name} {column_type}")
+                        columns.append(column_name)
 
                 conn.commit()
                 logger.info("Database schema migration complete")
@@ -92,6 +104,8 @@ class RecommendationStore:
                         ticker TEXT,
                         stance TEXT,
                         confidence TEXT,
+                        page INTEGER,
+                        section TEXT,
                         time_horizon TEXT,
                         rationale TEXT,
                         date TEXT,
@@ -172,17 +186,18 @@ class RecommendationStore:
                 analyst_id = getattr(r, 'analyst_id', None)
                 is_active = getattr(r, 'is_active', True)
                 outcome = getattr(r, 'outcome', None)
+                confidence = getattr(r, 'confidence', None)
                 
                 try:
                     conn.execute("""
                         INSERT INTO recommendations
                         (id, doc_id, source_type, bank, asset_class, sub_asset,
-                         ticker, stance, confidence, time_horizon, rationale, date,
+                         ticker, stance, confidence, page, section, time_horizon, rationale, date,
                          analyst_id, is_active, outcome)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         r.id, r.doc_id, r.source_type, r.bank, r.asset_class, r.sub_asset,
-                        None, r.stance, None, r.horizon, r.rationale,
+                        None, r.stance, confidence, r.page, r.section, r.horizon, r.rationale,
                         r.date or datetime.utcnow().isoformat(),
                         analyst_id, 1 if is_active else 0, outcome
                     ))
@@ -240,8 +255,9 @@ class RecommendationStore:
                             stance=row["stance"],
                             horizon=row["time_horizon"],
                             rationale=row["rationale"],
-                            page=None,
-                            section=None,
+                            page=row["page"],
+                            section=row["section"],
+                            confidence=row["confidence"],
                             date=row["date"],
                             # Internal fields
                             analyst_id=row["analyst_id"],
@@ -335,7 +351,8 @@ async def extract_recommendations_with_mistral(
                         horizon=r.get("horizon"),
                         rationale=str(r.get("rationale", "")),
                         page=r.get("page"),
-                        section=None,
+                        section=r.get("section"),
+                        confidence=r.get("confidence"),
                     )
                 )
             except Exception as e:
