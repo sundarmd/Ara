@@ -82,8 +82,9 @@ async def search_knowledge_base(
         for i, r in enumerate(results):
             meta = r.get('metadata', {})
             doc_id = meta.get('doc_id')
-            page = meta.get('page_start', 1)
-            deep_link = f"{settings.API_BASE_URL}/documents/{doc_id}/file#page={page}" if doc_id else None
+            page_start = meta.get('page_start', 1)
+            page_end = meta.get('page_end', page_start)
+            deep_link = f"{settings.API_BASE_URL}/documents/{doc_id}/file#page={page_start}" if doc_id else None
             title = meta.get('title') or meta.get('filename') or 'Unknown Document'
 
             if doc_id:
@@ -103,8 +104,8 @@ async def search_knowledge_base(
                     "bank": meta.get('bank', 'Unknown'),
                     "report_date": meta.get('report_date', 'N/A'),
                     "title": title,
-                    "page_start": page,
-                    "page_end": page,
+                    "page_start": page_start,
+                    "page_end": page_end,
                     "url": deep_link
                 }
             }
