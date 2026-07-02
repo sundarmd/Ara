@@ -3,6 +3,7 @@ Tool definitions for the Agent Orchestrator.
 Exposes specific capabilities as callable functions with schemas.
 """
 import asyncio
+import json
 import logging
 from contextvars import ContextVar, Token
 from typing import List, Optional, Dict, Any, Annotated
@@ -33,6 +34,19 @@ _SEARCH_FILTER_SCOPE: ContextVar[Dict[str, Optional[str]]] = ContextVar(
 def citation_id(range_start: int, index: int) -> int:
     """Return a stable citation ID within a tool-specific range."""
     return range_start + index
+
+
+def tool_success(sources: List[Dict[str, Any]], message: Optional[str] = None) -> str:
+    """Serialize a successful tool result using the shared contract."""
+    payload: Dict[str, Any] = {"ok": True, "sources": sources}
+    if message:
+        payload["message"] = message
+    return json.dumps(payload)
+
+
+def tool_error(message: str) -> str:
+    """Serialize a failed tool result using the shared contract."""
+    return json.dumps({"ok": False, "error": message, "sources": []})
 
 
 def set_search_filter_scope(bank: Optional[str], asset_class: Optional[str]) -> Token:
@@ -76,7 +90,7 @@ async def search_knowledge_base(
             filter_asset_class=filter_asset_class,
         )
         if not results:
-            return "No relevant information found in knowledge base."
+            return tool_success([], "No relevant information found in knowledge base.")
         
         tool_output = []
         document_titles: Dict[str, str] = {}
@@ -112,11 +126,10 @@ async def search_knowledge_base(
             }
             tool_output.append(source_entry)
             
-        import json
-        return json.dumps(tool_output)
+        return tool_success(tool_output)
     except Exception as e:
         logger.error(f"RAG tool error: {e}")
-        return f"Error searching knowledge base: {str(e)}"
+        return tool_error(f"Error searching knowledge base: {str(e)}")
 
 class QueryInternalViewsInput(BaseModel):
     asset_class: Optional[str] = Field(None, description="Filter by asset class (e.g., 'equity', 'fixed_income')")
@@ -145,7 +158,7 @@ async def query_internal_views(
         )
         
         if not recos:
-            return "No internal views found matching criteria."
+            return tool_success([], "No internal views found matching criteria.")
             
         tool_output = []
         for i, r in enumerate(recos):
@@ -164,12 +177,11 @@ async def query_internal_views(
             }
             tool_output.append(source_entry)
             
-        import json
-        return json.dumps(tool_output)
+        return tool_success(tool_output)
 
     except Exception as e:
         logger.error(f"Internal view tool error: {e}")
-        return f"Error querying internal views: {str(e)}"
+        return tool_error(f"Error querying internal views: {str(e)}")
 
 class AnalystIntelligenceInput(BaseModel):
     analyst_name: Optional[str] = Field(None, description="Name of the analyst (e.g., 'Sarah Chen')")
@@ -189,7 +201,7 @@ async def get_analyst_intelligence(
         analysts = await store.get_analysts(name=analyst_name, sector=sector)
         
         if not analysts:
-            return "No analysts found matching criteria."
+            return tool_success([], "No analysts found matching criteria.")
             
         tool_output = []
         for i, a in enumerate(analysts):
@@ -206,12 +218,11 @@ async def get_analyst_intelligence(
             }
             tool_output.append(source_entry)
             
-        import json
-        return json.dumps(tool_output)
+        return tool_success(tool_output)
 
     except Exception as e:
         logger.error(f"Analyst tool error: {e}")
-        return f"Error querying analyst intelligence: {str(e)}"
+        return tool_error(f"Error querying analyst intelligence: {str(e)}")
 
 @tool
 async def web_search(query: str) -> str:
@@ -220,7 +231,7 @@ async def web_search(query: str) -> str:
     Use this when internal data is insufficient.
     """
     if not settings.TAVILY_API_KEY:
-        return "Web search is disabled (TAVILY_API_KEY missing)."
+        return tool_error("Web search is disabled (TAVILY_API_KEY missing).")
         
     try:
         tavily = TavilyClient(api_key=settings.TAVILY_API_KEY)
@@ -233,7 +244,7 @@ async def web_search(query: str) -> str:
         
         results = response.get("results", [])
         if not results:
-            return "No web search results found."
+            return tool_success([], "No web search results found.")
             
         tool_output = []
         import urllib.parse
@@ -258,12 +269,11 @@ async def web_search(query: str) -> str:
             }
             tool_output.append(source_entry)
             
-        import json
-        return json.dumps(tool_output)
+        return tool_success(tool_output)
 
     except Exception as e:
         logger.error(f"Web search error: {e}")
-        return f"Error performing web search: {str(e)}"
+        return tool_error(f"Error performing web search: {str(e)}")
 
 # List of tools to be bound to the LangChain agent
 # Renamed query_recommendations -> query_internal_views

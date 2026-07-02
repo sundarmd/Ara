@@ -81,3 +81,51 @@ class AgentExecutionTraceTests(unittest.IsolatedAsyncioTestCase):
         serialized_events = json.dumps(events)
         self.assertNotIn("hidden reasoning", serialized_events)
         self.assertNotIn("hidden final", serialized_events)
+
+    async def test_orchestrator_surfaces_structured_tool_errors(self):
+        class FakeAgentExecutor:
+            def __init__(self, agent, tools, verbose):
+                pass
+
+            async def astream_events(self, payload, version):
+                yield {
+                    "event": "on_tool_end",
+                    "name": "search_knowledge_base",
+                    "data": {
+                        "output": json.dumps({
+                            "ok": False,
+                            "error": "vector store unavailable",
+                            "sources": [],
+                        })
+                    },
+                }
+                yield {
+                    "event": "on_chain_end",
+                    "name": "AgentExecutor",
+                    "data": {"output": {"output": "I could not search the reports."}},
+                }
+
+        orchestrator = object.__new__(AgentOrchestrator)
+        orchestrator.llm = Mock()
+
+        request = ChatRequest(
+            messages=[{"role": "user", "content": "What are duration views?"}],
+        )
+        loop = asyncio.get_running_loop()
+        loop.slow_callback_duration = 1.0
+
+        with (
+            patch("langchain.agents.create_tool_calling_agent", return_value=Mock()),
+            patch("langchain.agents.AgentExecutor", FakeAgentExecutor),
+        ):
+            events = [parse_sse(event) async for event in orchestrator.process_query(request)]
+
+        error_trace = [
+            event for event in events
+            if event["type"] == "thought" and "returned an error" in event["content"]
+        ][0]
+        complete_event = [event for event in events if event["type"] == "complete"][0]
+
+        self.assertEqual(error_trace["details"][0]["error"], "vector store unavailable")
+        self.assertEqual(error_trace["details"][0]["source_count"], 0)
+        self.assertEqual(complete_event["sources"], [])

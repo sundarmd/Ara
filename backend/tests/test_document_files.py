@@ -108,7 +108,7 @@ class DocumentFileLinkTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(tools, "search_documents", AsyncMock(return_value=search_results)):
             output = await tools.search_knowledge_base.ainvoke({"query": "EM assets"})
 
-        source = json.loads(output)[0]
+        source = json.loads(output)["sources"][0]
         self.assertTrue(
             source["metadata"]["url"].endswith("/documents/doc-1/file#page=7"),
             source["metadata"]["url"],

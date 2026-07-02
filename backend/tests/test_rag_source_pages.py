@@ -30,11 +30,10 @@ class RagSourcePageTests(unittest.IsolatedAsyncioTestCase):
         ):
             output = await tools.search_knowledge_base.ainvoke({"query": "EM assets"})
 
-        source = json.loads(output)[0]
+        source = json.loads(output)["sources"][0]
         self.assertEqual(source["metadata"]["page_start"], 5)
         self.assertEqual(source["metadata"]["page_end"], 7)
         self.assertTrue(
             source["metadata"]["url"].endswith("/documents/doc-1/file#page=5"),
             source["metadata"]["url"],
         )
-

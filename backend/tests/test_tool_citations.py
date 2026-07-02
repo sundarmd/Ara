@@ -7,6 +7,10 @@ from unittest.mock import AsyncMock, Mock, patch
 from services import tools
 
 
+def tool_sources(output):
+    return json.loads(output)["sources"]
+
+
 class ToolCitationTests(unittest.IsolatedAsyncioTestCase):
     async def test_knowledge_base_citations_use_knowledge_base_range(self):
         search_results = [
@@ -17,7 +21,7 @@ class ToolCitationTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(tools, "search_documents", AsyncMock(return_value=search_results)):
             output = await tools.search_knowledge_base.ainvoke({"query": "EM assets"})
 
-        sources = json.loads(output)
+        sources = tool_sources(output)
         self.assertEqual([source["citation_id"] for source in sources], [1, 2])
 
     async def test_internal_view_citations_use_internal_range(self):
@@ -52,7 +56,7 @@ class ToolCitationTests(unittest.IsolatedAsyncioTestCase):
                 {"asset_class": None, "include_history": True}
             )
 
-        sources = json.loads(output)
+        sources = tool_sources(output)
         self.assertEqual([source["citation_id"] for source in sources], [100, 101])
 
     async def test_analyst_citations_use_analyst_range(self):
@@ -74,7 +78,7 @@ class ToolCitationTests(unittest.IsolatedAsyncioTestCase):
                 {"analyst_name": None, "sector": "Technology"}
             )
 
-        sources = json.loads(output)
+        sources = tool_sources(output)
         self.assertEqual([source["citation_id"] for source in sources], [200])
 
     async def test_web_citations_use_web_range(self):
@@ -100,7 +104,7 @@ class ToolCitationTests(unittest.IsolatedAsyncioTestCase):
         ):
             output = await tools.web_search.ainvoke({"query": "markets"})
 
-        sources = json.loads(output)
+        sources = tool_sources(output)
         self.assertEqual([source["citation_id"] for source in sources], [300, 301])
 
     async def test_web_search_runs_tavily_search_in_executor(self):
@@ -145,5 +149,5 @@ class ToolCitationTests(unittest.IsolatedAsyncioTestCase):
             "search_depth": "basic",
             "max_results": 3,
         })
-        sources = json.loads(output)
+        sources = tool_sources(output)
         self.assertEqual([source["citation_id"] for source in sources], [300])

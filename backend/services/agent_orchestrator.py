@@ -138,21 +138,19 @@ class AgentOrchestrator:
                     # Parse output for sources
                     tool_name = event["name"]
                     output = event["data"].get("output")
-                    source_count = 0
-                    if output:
-                        try:
-                            data = json.loads(output)
-                            if isinstance(data, list):
-                                for item in data:
-                                    if isinstance(item, dict) and "metadata" in item:
-                                        collected_sources.append(item)
-                                        source_count += 1
-                        except json.JSONDecodeError:
-                            pass
+                    parsed_sources, tool_error = self._parse_tool_output(output)
+                    collected_sources.extend(parsed_sources)
+                    source_count = len(parsed_sources)
+                    details = {"tool": tool_name, "source_count": source_count}
+                    if tool_error:
+                        details["error"] = tool_error
+
                     yield self._format_event(StreamEventType.THOUGHT, {
                         "phase": "analyzing",
-                        "content": self._build_tool_end_trace(tool_name, source_count),
-                        "details": [{"tool": tool_name, "source_count": source_count}]
+                        "content": self._build_tool_error_trace(tool_name, tool_error)
+                        if tool_error
+                        else self._build_tool_end_trace(tool_name, source_count),
+                        "details": [details]
                     })
 
                 elif kind == "on_chain_end" and event["name"] == "AgentExecutor":
@@ -199,6 +197,36 @@ class AgentOrchestrator:
         content = re.sub(r"<function.*?>", "", content, flags=re.DOTALL | re.IGNORECASE)
         return content
 
+    def _parse_tool_output(self, output: Any) -> tuple[list[Dict[str, Any]], Optional[str]]:
+        """Extract sources and tool errors from the shared tool-output contract."""
+        if not output:
+            return [], None
+
+        try:
+            data = json.loads(output)
+        except (json.JSONDecodeError, TypeError):
+            return [], str(output)
+
+        if isinstance(data, list):
+            return self._extract_source_items(data), None
+
+        if isinstance(data, dict):
+            sources = self._extract_source_items(data.get("sources", []))
+            if data.get("ok") is False:
+                return sources, data.get("error") or "Tool failed."
+            return sources, None
+
+        return [], "Tool returned unexpected output shape."
+
+    def _extract_source_items(self, items: Any) -> list[Dict[str, Any]]:
+        if not isinstance(items, list):
+            return []
+        return [
+            item
+            for item in items
+            if isinstance(item, dict) and "metadata" in item
+        ]
+
     def _build_tool_start_trace(self, tool_name: str, tool_input: Dict[str, Any]) -> str:
         display_name = TOOL_DISPLAY_NAMES.get(tool_name, tool_name)
 
@@ -229,6 +257,10 @@ class AgentOrchestrator:
         if source_count > 1:
             return f"Found {source_count} sources from {display_name}."
         return f"Finished {display_name}."
+
+    def _build_tool_error_trace(self, tool_name: str, error: str) -> str:
+        display_name = TOOL_DISPLAY_NAMES.get(tool_name, tool_name)
+        return f"{display_name} returned an error: {error}"
 
 # Singleton
 _orchestrator: Optional[AgentOrchestrator] = None

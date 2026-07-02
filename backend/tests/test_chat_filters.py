@@ -24,7 +24,10 @@ class ChatFilterToolTests(unittest.IsolatedAsyncioTestCase):
                 }
             )
 
-        self.assertEqual(output, "No relevant information found in knowledge base.")
+        payload = json.loads(output)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["sources"], [])
+        self.assertEqual(payload["message"], "No relevant information found in knowledge base.")
         search_documents.assert_awaited_once_with(
             query="duration views",
             n_results=7,

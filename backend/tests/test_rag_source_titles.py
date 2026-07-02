@@ -29,7 +29,7 @@ class RagSourceTitleTests(unittest.IsolatedAsyncioTestCase):
         ):
             output = await tools.search_knowledge_base.ainvoke({"query": "EM assets"})
 
-        source = json.loads(output)[0]
+        source = json.loads(output)["sources"][0]
         self.assertEqual(source["metadata"]["title"], "Global Market Views")
         doc_store.get_document.assert_called_once_with("doc-1")
 
@@ -55,6 +55,5 @@ class RagSourceTitleTests(unittest.IsolatedAsyncioTestCase):
         ):
             output = await tools.search_knowledge_base.ainvoke({"query": "EM assets"})
 
-        source = json.loads(output)[0]
+        source = json.loads(output)["sources"][0]
         self.assertEqual(source["metadata"]["title"], "goldman-global-market-views.pdf")
-
