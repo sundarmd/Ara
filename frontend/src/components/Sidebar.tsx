@@ -209,7 +209,7 @@ export function Sidebar() {
                                                         className="group flex min-h-10 items-center gap-1 rounded-[14px] px-2 transition-colors hover:bg-[hsl(var(--sidebar-panel))]"
                                                     >
                                                         <a
-                                                            href={api.getStreamUrl(`/files/${doc.doc_id}.pdf`)}
+                                                            href={api.getStreamUrl(`/documents/${doc.doc_id}/file`)}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="flex min-w-0 flex-1 items-center gap-2 text-[hsl(var(--sidebar-muted))] transition-colors hover:text-[hsl(var(--sidebar-foreground))]"

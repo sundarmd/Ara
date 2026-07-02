@@ -258,6 +258,29 @@ async def serve_pdf(filename: str):
     )
 
 
+@app.get("/documents/{doc_id}/file")
+async def serve_document_file(doc_id: str):
+    """
+    Serve a stored PDF by document ID.
+    Resolves metadata through DocumentStore before opening DATA_DIR/{doc_id}.pdf.
+    """
+    doc_store = get_document_store()
+    doc = doc_store.get_document(doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    file_path = os.path.join(settings.DATA_DIR, f"{doc.doc_id}.pdf")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return FileResponse(
+        path=file_path,
+        media_type="application/pdf",
+        filename=doc.filename,
+        content_disposition_type="inline",
+    )
+
+
 @app.get("/documents")
 async def list_documents():
     """Get all indexed documents."""

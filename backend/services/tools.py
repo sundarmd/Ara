@@ -81,7 +81,7 @@ async def search_knowledge_base(
             meta = r.get('metadata', {})
             doc_id = meta.get('doc_id')
             page = meta.get('page_start', 1)
-            deep_link = f"{settings.API_BASE_URL}/files/{doc_id}.pdf#page={page}" if doc_id else None
+            deep_link = f"{settings.API_BASE_URL}/documents/{doc_id}/file#page={page}" if doc_id else None
 
             source_entry = {
                 "citation_id": citation_id(KB_CITATION_START, i),
