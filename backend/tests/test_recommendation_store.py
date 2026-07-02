@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import tempfile
 import unittest
 
@@ -43,8 +44,13 @@ class RecommendationStoreTests(unittest.IsolatedAsyncioTestCase):
             rates = await store.get_by_filters(asset_class="rates")
             deleted_count = store.delete_by_doc_id("doc-1")
             remaining = await store.get_all()
+            with sqlite3.connect(store.db_path) as conn:
+                columns = {row[1] for row in conn.execute("PRAGMA table_info(recommendations)")}
 
         self.assertEqual([recommendation.id for recommendation in rates], ["rec-1"])
         self.assertEqual(rates[0].page, 4)
+        self.assertEqual(rates[0].horizon, "3m")
+        self.assertIn("horizon", columns)
+        self.assertNotIn("time_horizon", columns)
         self.assertEqual(deleted_count, 1)
         self.assertEqual([recommendation.id for recommendation in remaining], ["rec-2"])

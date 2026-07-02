@@ -39,6 +39,91 @@ class InternalView(Recommendation):
     outcome: Optional[str] = None # For historical records
 
 
+RECOMMENDATION_DB_COLUMNS: Tuple[str, ...] = (
+    "id",
+    "doc_id",
+    "source_type",
+    "bank",
+    "asset_class",
+    "sub_asset",
+    "stance",
+    "confidence",
+    "horizon",
+    "rationale",
+    "page",
+    "section",
+    "date",
+    "analyst_id",
+    "is_active",
+    "outcome",
+)
+
+RECOMMENDATION_DB_COLUMN_TYPES: Dict[str, str] = {
+    "id": "TEXT",
+    "doc_id": "TEXT",
+    "source_type": "TEXT",
+    "bank": "TEXT",
+    "asset_class": "TEXT",
+    "sub_asset": "TEXT",
+    "stance": "TEXT",
+    "confidence": "TEXT",
+    "horizon": "TEXT",
+    "rationale": "TEXT",
+    "page": "INTEGER",
+    "section": "TEXT",
+    "date": "TEXT",
+    "analyst_id": "TEXT",
+    "is_active": "INTEGER DEFAULT 1",
+    "outcome": "TEXT",
+}
+
+
+def _recommendation_to_db_values(recommendation: Recommendation) -> Tuple[Any, ...]:
+    analyst_id = getattr(recommendation, "analyst_id", None)
+    is_active = getattr(recommendation, "is_active", True)
+    outcome = getattr(recommendation, "outcome", None)
+
+    return (
+        recommendation.id,
+        recommendation.doc_id,
+        recommendation.source_type,
+        recommendation.bank,
+        recommendation.asset_class,
+        recommendation.sub_asset,
+        recommendation.stance,
+        recommendation.confidence,
+        recommendation.horizon,
+        recommendation.rationale,
+        recommendation.page,
+        recommendation.section,
+        recommendation.date or datetime.utcnow().isoformat(),
+        analyst_id,
+        1 if is_active else 0,
+        outcome,
+    )
+
+
+def _row_to_internal_view(row: sqlite3.Row) -> InternalView:
+    return InternalView(
+        id=row["id"],
+        doc_id=row["doc_id"],
+        bank=row["bank"] or "Unknown",
+        source_type=row["source_type"],
+        asset_class=row["asset_class"],
+        sub_asset=row["sub_asset"],
+        stance=row["stance"],
+        confidence=row["confidence"],
+        horizon=row["horizon"],
+        rationale=row["rationale"],
+        page=row["page"],
+        section=row["section"],
+        date=row["date"],
+        analyst_id=row["analyst_id"],
+        is_active=bool(row["is_active"]),
+        outcome=row["outcome"],
+    )
+
+
 class RecommendationStore:
     """
     SQLite-backed storage for recommendations and analyst intelligence.
@@ -87,20 +172,22 @@ class RecommendationStore:
                 if 'source_name' in columns and 'bank' not in columns:
                     logger.info("Migrating recommendations table: source_name -> bank")
                     conn.execute("ALTER TABLE recommendations RENAME COLUMN source_name TO bank")
+                    columns[columns.index('source_name')] = 'bank'
 
                 if 'sub_asset_class' in columns and 'sub_asset' not in columns:
                     logger.info("Migrating recommendations table: sub_asset_class -> sub_asset")
                     conn.execute("ALTER TABLE recommendations RENAME COLUMN sub_asset_class TO sub_asset")
                     columns[columns.index('sub_asset_class')] = 'sub_asset'
 
-                missing_columns = {
-                    "page": "INTEGER",
-                    "section": "TEXT",
-                    "confidence": "TEXT",
-                }
-                for column_name, column_type in missing_columns.items():
+                if 'time_horizon' in columns and 'horizon' not in columns:
+                    logger.info("Migrating recommendations table: time_horizon -> horizon")
+                    conn.execute("ALTER TABLE recommendations RENAME COLUMN time_horizon TO horizon")
+                    columns[columns.index('time_horizon')] = 'horizon'
+
+                for column_name in RECOMMENDATION_DB_COLUMNS:
                     if column_name not in columns:
                         logger.info(f"Adding recommendations.{column_name} column")
+                        column_type = RECOMMENDATION_DB_COLUMN_TYPES[column_name]
                         conn.execute(f"ALTER TABLE recommendations ADD COLUMN {column_name} {column_type}")
                         columns.append(column_name)
 
@@ -119,13 +206,12 @@ class RecommendationStore:
                         bank TEXT,
                         asset_class TEXT,
                         sub_asset TEXT,
-                        ticker TEXT,
                         stance TEXT,
                         confidence TEXT,
+                        horizon TEXT,
+                        rationale TEXT,
                         page INTEGER,
                         section TEXT,
-                        time_horizon TEXT,
-                        rationale TEXT,
                         date TEXT,
                         analyst_id TEXT,
                         is_active INTEGER DEFAULT 1,
@@ -199,26 +285,15 @@ class RecommendationStore:
             return
             
         with sqlite3.connect(self.db_path) as conn:
+            columns_sql = ", ".join(RECOMMENDATION_DB_COLUMNS)
+            placeholders_sql = ", ".join(["?"] * len(RECOMMENDATION_DB_COLUMNS))
             for r in recommendations:
-                # Handle extended fields if present (duck typing)
-                analyst_id = getattr(r, 'analyst_id', None)
-                is_active = getattr(r, 'is_active', True)
-                outcome = getattr(r, 'outcome', None)
-                confidence = getattr(r, 'confidence', None)
-                
                 try:
-                    conn.execute("""
+                    conn.execute(f"""
                         INSERT INTO recommendations
-                        (id, doc_id, source_type, bank, asset_class, sub_asset,
-                         ticker, stance, confidence, page, section, time_horizon, rationale, date,
-                         analyst_id, is_active, outcome)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        r.id, r.doc_id, r.source_type, r.bank, r.asset_class, r.sub_asset,
-                        None, r.stance, confidence, r.page, r.section, r.horizon, r.rationale,
-                        r.date or datetime.utcnow().isoformat(),
-                        analyst_id, 1 if is_active else 0, outcome
-                    ))
+                        ({columns_sql})
+                        VALUES ({placeholders_sql})
+                    """, _recommendation_to_db_values(r))
                 except sqlite3.IntegrityError:
                     logger.warning("Duplicate recommendation skipped", extra={"rec_id": r.id, "doc_id": r.doc_id})
                     continue
@@ -262,29 +337,10 @@ class RecommendationStore:
             recommendations: List[InternalView] = []
             for row in rows:
                 try:
-                    recommendations.append(
-                        InternalView(
-                            id=row["id"],
-                            doc_id=row["doc_id"],
-                            bank=row["bank"] or "Unknown",
-                            source_type=row["source_type"],
-                            asset_class=row["asset_class"],
-                            sub_asset=row["sub_asset"],
-                            stance=row["stance"],
-                            horizon=row["time_horizon"],
-                            rationale=row["rationale"],
-                            page=row["page"],
-                            section=row["section"],
-                            confidence=row["confidence"],
-                            date=row["date"],
-                            # Internal fields
-                            analyst_id=row["analyst_id"],
-                            is_active=bool(row["is_active"]),
-                            outcome=row["outcome"]
-                        )
-                    )
+                    recommendations.append(_row_to_internal_view(row))
                 except Exception as e:
-                    logger.warning("Failed to parse recommendation row", exc_info=True, extra={"row_id": row.get("id")})
+                    row_id = row["id"] if "id" in row.keys() else None
+                    logger.warning("Failed to parse recommendation row", exc_info=True, extra={"row_id": row_id})
                     continue
             
             return recommendations

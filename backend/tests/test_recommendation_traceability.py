@@ -95,15 +95,45 @@ class RecommendationTraceabilityTests(unittest.IsolatedAsyncioTestCase):
                     )
                     """
                 )
+                conn.execute(
+                    """
+                    INSERT INTO recommendations
+                    (id, doc_id, source_type, bank, asset_class, sub_asset,
+                     ticker, stance, time_horizon, rationale, date,
+                     analyst_id, is_active, outcome)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        "rec-old",
+                        "doc-old",
+                        "sell_side",
+                        "GS",
+                        "multi_asset",
+                        "EM local rates",
+                        None,
+                        "Long",
+                        "12m",
+                        "Legacy horizon value.",
+                        "2025-08-17",
+                        None,
+                        1,
+                        None,
+                    ),
+                )
                 conn.commit()
 
             store = RecommendationStore(db_path=db_path)
             with sqlite3.connect(db_path) as conn:
                 columns = {row[1] for row in conn.execute("PRAGMA table_info(recommendations)")}
 
+            self.assertIn("horizon", columns)
+            self.assertNotIn("time_horizon", columns)
             self.assertIn("page", columns)
             self.assertIn("section", columns)
             self.assertIn("confidence", columns)
+
+            legacy_saved = await store.get_by_filters(doc_id="doc-old")
+            self.assertEqual(legacy_saved[0].horizon, "12m")
 
             recommendation = Recommendation(
                 id="rec-1",
