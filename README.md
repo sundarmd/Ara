@@ -206,7 +206,7 @@ The Thoughts Panel provides full visibility into agent decision-making for enter
 | **Document Structure Preservation** | Tables and figures kept intact. Financial reports have structure that matters. |
 | **Verifiable AI Responses** | Page-level citations let analysts verify every claim against source documents. |
 | **Hybrid Retrieval** | Vector search for semantics, SQL for structured filters. Both needed for financial queries. |
-| **ReAct Reasoning** | Industry-standard agentic pattern (Yao et al., 2022) with explicit, auditable decision traces. |
+| **LangChain Tool Calling** | Tool-calling agent with structured specialist tools and auditable execution traces. |
 | **One-Command Deployment** | Docker Compose packages everything. No manual setup steps. |
 
 ---
