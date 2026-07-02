@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { ChatMessage, SSEEvent, ThoughtEvent } from '../types/chat';
 import { api } from '../services/api';
 
@@ -21,13 +21,24 @@ export function useChat(): UseChatReturn {
     const [isThinking, setIsThinking] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const currentMessageId = useRef<string | null>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     // We strictly track the accumulated thoughts for the *active* generating message separately to ensure smooth updates,
     // then merge them into the message object.
     const [currentThoughts, setCurrentThoughts] = useState<ThoughtEvent[]>([]);
     const [thinkingStartTime, setThinkingStartTime] = useState<number | null>(null);
 
+    useEffect(() => {
+        return () => {
+            abortControllerRef.current?.abort();
+            abortControllerRef.current = null;
+            currentMessageId.current = null;
+        };
+    }, []);
+
     const sendMessage = useCallback(async (content: string) => {
+        abortControllerRef.current?.abort();
+
         // Add user message
         const userMessage: ChatMessage = {
             id: `user-${Date.now()}`,
@@ -51,6 +62,8 @@ export function useChat(): UseChatReturn {
         // 2. Create placeholder for assistant message
         const assistantId = `assistant-${Date.now()}`;
         currentMessageId.current = assistantId;
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
 
         const placeholderMessage: ChatMessage = {
             id: assistantId,
@@ -74,6 +87,7 @@ export function useChat(): UseChatReturn {
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                signal: abortController.signal,
                 body: JSON.stringify({ messages: requestMessages }),
             });
 
@@ -155,21 +169,33 @@ export function useChat(): UseChatReturn {
             }
 
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to send message');
-            // Remove placeholder on error
-            setMessages((prev) => prev.filter((m) => m.id !== assistantId));
+            if (!abortController.signal.aborted && currentMessageId.current === assistantId) {
+                setError(err instanceof Error ? err.message : 'Failed to send message');
+                // Remove placeholder on error
+                setMessages((prev) => prev.filter((m) => m.id !== assistantId));
+            }
         } finally {
-            setIsLoading(false);
-            setIsThinking(false);
-            currentMessageId.current = null;
+            if (currentMessageId.current === assistantId) {
+                setIsLoading(false);
+                setIsThinking(false);
+                currentMessageId.current = null;
+                if (abortControllerRef.current === abortController) {
+                    abortControllerRef.current = null;
+                }
+            }
         }
     }, [messages]);
 
     const clearMessages = useCallback(() => {
+        abortControllerRef.current?.abort();
+        abortControllerRef.current = null;
+        currentMessageId.current = null;
         setMessages([]);
         setCurrentThoughts([]);
         setError(null);
         setThinkingStartTime(null);
+        setIsLoading(false);
+        setIsThinking(false);
     }, []);
 
     return {
