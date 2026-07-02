@@ -23,6 +23,7 @@ services:
       - DOCUMENTS_DB_PATH=/app/data/documents.db
       - RECOMMENDATIONS_DB_PATH=/app/data/recommendations.db
       - IMAGES_DIR=/app/data/images
+      - TABLES_DIR=/app/data/tables
       - RECOMMENDATIONS_PATH=/app/data/recommendations.json
     healthcheck:
       test:

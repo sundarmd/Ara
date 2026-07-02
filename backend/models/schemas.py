@@ -34,6 +34,9 @@ class Chunk(BaseModel):
     section: Optional[str]
     segment_types: List[str]
     text: str
+    table_artifact_path: Optional[str] = None
+    table_row_start: Optional[int] = None
+    table_row_end: Optional[int] = None
 
 
 # Chat-related models

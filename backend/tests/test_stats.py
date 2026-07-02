@@ -7,6 +7,7 @@ from langchain_core.documents import Document
 
 import main
 from config.settings import settings
+from models.schemas import Chunk
 from services.database import ResearchVectorStore
 
 
@@ -73,6 +74,43 @@ class ResearchVectorStoreStatsTests(unittest.TestCase):
                 "persist_directory": settings.VECTOR_DB_DIR,
             },
         )
+
+
+class ResearchVectorStoreIndexTests(unittest.IsolatedAsyncioTestCase):
+    async def test_index_chunks_includes_table_artifact_metadata(self):
+        class FakeVectorStore:
+            def __init__(self):
+                self.documents = None
+
+            def add_documents(self, documents):
+                self.documents = documents
+
+        fake_vector_store = FakeVectorStore()
+        store = object.__new__(ResearchVectorStore)
+        store.vectorstore = fake_vector_store
+
+        await store.index_chunks([
+            Chunk(
+                id="chunk-1",
+                doc_id="doc-1",
+                bank="BSH",
+                asset_class="lab_data",
+                report_date="2026-01-01",
+                page_start=5,
+                page_end=5,
+                section="Measurement Results",
+                segment_types=["table"],
+                text="table excerpt",
+                table_artifact_path="/data/tables/doc-1/page-5.md",
+                table_row_start=10,
+                table_row_end=20,
+            )
+        ])
+
+        document = fake_vector_store.documents[0]
+        self.assertEqual(document.metadata["table_artifact_path"], "/data/tables/doc-1/page-5.md")
+        self.assertEqual(document.metadata["table_row_start"], 10)
+        self.assertEqual(document.metadata["table_row_end"], 20)
 
 
 class ResearchVectorStoreSearchTests(unittest.IsolatedAsyncioTestCase):

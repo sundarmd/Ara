@@ -41,6 +41,7 @@ def _cleanup_failed_ingestion(
         "vectors_deleted": False,
         "recommendations_deleted": 0,
         "images_deleted": False,
+        "tables_deleted": False,
         "pdf_deleted": False,
     }
 
@@ -76,6 +77,19 @@ def _cleanup_failed_ingestion(
         except Exception as cleanup_error:
             logger.warning(
                 "Failed to cleanup images for doc_id=%s: %s",
+                doc_id,
+                cleanup_error,
+                exc_info=True,
+            )
+
+    tables_dir = os.path.join(settings.TABLES_DIR, doc_id)
+    if os.path.exists(tables_dir):
+        try:
+            shutil.rmtree(tables_dir)
+            cleanup["tables_deleted"] = True
+        except Exception as cleanup_error:
+            logger.warning(
+                "Failed to cleanup table artifacts for doc_id=%s: %s",
                 doc_id,
                 cleanup_error,
                 exc_info=True,

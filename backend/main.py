@@ -457,7 +457,8 @@ async def delete_document(doc_id: str):
         "vectors_deleted": False,
         "vectors_deleted_count": 0,
         "recommendations_deleted": 0,
-        "images_deleted": 0
+        "images_deleted": 0,
+        "tables_deleted": 0,
     }
 
     # 1. Delete PDF file
@@ -492,7 +493,14 @@ async def delete_document(doc_id: str):
         shutil.rmtree(images_dir)
         deleted_items["images_deleted"] = image_count
 
-    # 5. Delete document metadata (last, so we can still reference doc info above)
+    # 5. Delete table artifacts (if any)
+    tables_dir = os.path.join(settings.TABLES_DIR, doc_id)
+    if os.path.exists(tables_dir):
+        table_count = len(os.listdir(tables_dir))
+        shutil.rmtree(tables_dir)
+        deleted_items["tables_deleted"] = table_count
+
+    # 6. Delete document metadata (last, so we can still reference doc info above)
     deleted_items["metadata_deleted"] = doc_store.delete_document(doc_id)
 
     logger.info(f"Document deleted: {deleted_items}")

@@ -25,6 +25,10 @@ class IngestionCleanupTests(unittest.IsolatedAsyncioTestCase):
             image_dir = images_root / "doc-1"
             image_dir.mkdir(parents=True)
             (image_dir / "page-1.png").write_bytes(b"image")
+            tables_root = tmp_path / "tables"
+            table_dir = tables_root / "doc-1"
+            table_dir.mkdir(parents=True)
+            (table_dir / "page-1.md").write_text("| A | B |", encoding="utf-8")
 
             segments = [
                 Segment(
@@ -55,6 +59,7 @@ class IngestionCleanupTests(unittest.IsolatedAsyncioTestCase):
 
             with (
                 patch.object(ingestion.settings, "IMAGES_DIR", str(images_root)),
+                patch.object(ingestion.settings, "TABLES_DIR", str(tables_root)),
                 patch.object(ingestion, "parse_pdf_to_segments", new=AsyncMock(return_value=segments)),
                 patch.object(ingestion, "build_chunks", return_value=chunks),
                 patch.object(ingestion, "get_vector_store", return_value=vector_store),
@@ -79,6 +84,7 @@ class IngestionCleanupTests(unittest.IsolatedAsyncioTestCase):
         recommendation_store.delete_by_doc_id.assert_called_once_with("doc-1")
         self.assertFalse(file_path.exists())
         self.assertFalse(image_dir.exists())
+        self.assertFalse(table_dir.exists())
 
     async def test_ingestion_errors_use_current_provider_context(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -55,6 +55,12 @@ class ResearchVectorStore:
                 "section": c.section or "",
                 "segment_types": ",".join(c.segment_types),
             }
+            if c.table_artifact_path:
+                metadata["table_artifact_path"] = c.table_artifact_path
+            if c.table_row_start is not None:
+                metadata["table_row_start"] = c.table_row_start
+            if c.table_row_end is not None:
+                metadata["table_row_end"] = c.table_row_end
             doc = Document(page_content=c.text, metadata=metadata, id=c.id)
             documents.append(doc)
             

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     DOCUMENTS_DB_PATH: Optional[str] = None
     RECOMMENDATIONS_DB_PATH: Optional[str] = None
     IMAGES_DIR: str = "./data/images"
+    TABLES_DIR: str = "./data/tables"
     PROMPTS_DIR: str = "./prompts"
     RECOMMENDATIONS_PATH: str = "./data/recommendations.json"
     MAX_UPLOAD_MB: float = 50.0
@@ -134,6 +135,7 @@ def ensure_directories():
     os.makedirs(settings.reports_dir, exist_ok=True)
     os.makedirs(settings.VECTOR_DB_DIR, exist_ok=True)
     os.makedirs(settings.IMAGES_DIR, exist_ok=True)
+    os.makedirs(settings.TABLES_DIR, exist_ok=True)
     # Ensure parent directory for recommendations file exists
     os.makedirs(os.path.dirname(settings.RECOMMENDATIONS_PATH), exist_ok=True)
     for db_path in (settings.documents_db_path, settings.recommendations_db_path):
