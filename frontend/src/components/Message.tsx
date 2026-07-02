@@ -18,7 +18,14 @@ interface MessageProps {
     thinkingStartTime?: number;
 }
 
+function parseCitationIds(rawIds: string) {
+    return rawIds.replace(/\s/g, '').split(',').map(Number);
+}
 
+function hasEveryCitationId(rawIds: string, citationIds: Set<number>) {
+    const ids = parseCitationIds(rawIds);
+    return ids.length > 0 && ids.every(id => citationIds.has(id));
+}
 
 function DistinctSourceList({ sources }: { sources: Source[] }) {
     const distinctSources = useMemo(() => {
@@ -92,6 +99,12 @@ function DistinctSourceList({ sources }: { sources: Source[] }) {
 
 function ContentWithCitations({ content, sources: _sources }: { content: string; sources?: Source[] }) {
     const preprocessedContent = useMemo(() => {
+        const citationIds = new Set(
+            (_sources ?? [])
+                .map(source => source.citation_id)
+                .filter((id): id is number => typeof id === 'number')
+        );
+
         // Step 0: Strip formatting around citation patterns (LLM sometimes adds these)
         // Remove backticks: `[1]` or `[1](#citation-1)` → [1] or [1](#citation-1)
         let processed = content.replace(/`((?:\[[\d,\s]+\](?:\(#citation-[\d,]+\))?)+)`/g, '$1');
@@ -106,13 +119,16 @@ function ContentWithCitations({ content, sources: _sources }: { content: string;
         processed = processed.replace(/\[([\d,\s]+)\]\(#citation-[\d,]+\)/g, (_, ids) => `[${ids}]`);
 
         // Step 2: Transform plain [1] to anchor links for rendering
-        processed = processed.replace(/\[([\d,\s]+)\]/g, (_, p1) => {
+        processed = processed.replace(/\[([\d,\s]+)\]/g, (originalText, p1) => {
+            if (!hasEveryCitationId(p1, citationIds)) {
+                return originalText;
+            }
             const idsStr = p1.replace(/\s/g, '');
             return `[${p1}](#citation-${idsStr})`;
         });
 
         return processed;
-    }, [content]);
+    }, [content, _sources]);
 
     return (
         <div className="prose prose-sm dark:prose-invert max-w-none leading-relaxed text-foreground">
@@ -145,10 +161,7 @@ function ContentWithCitations({ content, sources: _sources }: { content: string;
                             return (
                                 <span className="inline-flex items-center gap-0.5 align-super ml-0.5 translate-y-1">
                                     {ids.map((id) => {
-                                        // Try to find by citation_id first, then fall back to array index
-                                        const source = _sources
-                                            ? (_sources.find(s => s.citation_id === id) || _sources[id - 1])
-                                            : null;
+                                        const source = _sources?.find(s => s.citation_id === id) ?? null;
                                         const isWeb = source?.metadata?.bank === 'Web';
 
                                         return (
