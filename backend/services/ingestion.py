@@ -10,7 +10,6 @@ This module owns all indexing logic:
 """
 import logging
 from typing import Optional, List, Callable, Awaitable
-from datetime import date
 import httpx
 
 from models.schemas import Chunk, Recommendation
@@ -102,7 +101,7 @@ async def ingest_pdf(
                 # Fallback defaults
                 bank = bank or (title if title else "UNKNOWN")
                 asset_class = asset_class or "multi_asset"
-                report_date = report_date or date.today().isoformat()
+                report_date = report_date or "UNKNOWN"
                 
         # Update result with final metadata
         result["bank"] = bank

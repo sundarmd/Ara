@@ -6,7 +6,6 @@ import json
 import logging
 from typing import Optional
 from dataclasses import dataclass
-from datetime import date
 
 import httpx
 
@@ -20,7 +19,7 @@ class DocumentMetadata:
     """Extracted metadata from a research report."""
     bank: str
     asset_class: str
-    report_date: str  # ISO format YYYY-MM-DD
+    report_date: str  # ISO format YYYY-MM-DD, or UNKNOWN when unavailable
     title: Optional[str] = None
 
 
@@ -59,7 +58,7 @@ async def extract_metadata_from_content(text: str) -> Optional[DocumentMetadata]
         # Validate required fields
         bank = parsed.get("bank", "UNKNOWN")
         asset_class = parsed.get("asset_class", "UNKNOWN")
-        report_date = parsed.get("report_date", "UNKNOWN")
+        report_date = parsed.get("report_date") or "UNKNOWN"
         title = parsed.get("title")
         
         if bank == "UNKNOWN" or asset_class == "UNKNOWN" or report_date == "UNKNOWN":
@@ -70,7 +69,7 @@ async def extract_metadata_from_content(text: str) -> Optional[DocumentMetadata]
             if asset_class == "UNKNOWN":
                 asset_class = "multi_asset"
             if report_date == "UNKNOWN":
-                report_date = date.today().isoformat()
+                report_date = "UNKNOWN"
         
         return DocumentMetadata(
             bank=bank.upper(),

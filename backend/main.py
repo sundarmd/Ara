@@ -3,7 +3,6 @@ import uuid
 import logging
 import json
 from typing import Optional, List, Dict, Any
-from datetime import date
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
@@ -206,7 +205,7 @@ async def upload_files(
                         filename=filename,
                         bank=result.get("bank", "Top-tier Bank"),
                         asset_class=result.get("asset_class", "multi_asset"),
-                        report_date=result.get("report_date", date.today().isoformat()),
+                        report_date=result.get("report_date") or "UNKNOWN",
                         title=result.get("title", filename),
                         chunk_count=result.get("chunks", 0),
                     )
