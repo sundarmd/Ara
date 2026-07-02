@@ -151,19 +151,22 @@ async def lifespan(app: FastAPI):
     ensure_directories()
     logger.info("Application started, directories initialized")
 
-    # Auto-seed internal data if analysts table is empty (prevents duplicates)
-    try:
-        store = get_recommendation_store()
-        analysts = await store.get_analysts()
-        if not analysts:
-            logger.info("No analysts found, seeding internal mock data...")
-            from scripts.seed_internal_data import seed_data
-            await seed_data()
-            logger.info("Internal mock data seeded successfully")
-        else:
-            logger.info(f"Found {len(analysts)} existing analysts, skipping seed")
-    except Exception as e:
-        logger.warning(f"Auto-seed check failed (non-critical): {e}")
+    if settings.auto_seed_mock_data:
+        # Auto-seed internal data if analysts table is empty (prevents duplicates)
+        try:
+            store = get_recommendation_store()
+            analysts = await store.get_analysts()
+            if not analysts:
+                logger.info("No analysts found, seeding internal mock data...")
+                from scripts.seed_internal_data import seed_data
+                await seed_data()
+                logger.info("Internal mock data seeded successfully")
+            else:
+                logger.info(f"Found {len(analysts)} existing analysts, skipping seed")
+        except Exception as e:
+            logger.warning(f"Auto-seed check failed (non-critical): {e}")
+    else:
+        logger.info("Mock data auto-seed disabled")
 
     yield
     # Cleanup if needed

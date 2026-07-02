@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     API_PORT: int = 8000
     ENVIRONMENT: str = "development"
     ENABLE_DEBUG_ENDPOINTS: bool = False
+    AUTO_SEED_MOCK_DATA: Optional[bool] = None
     CORS_ALLOWED_ORIGINS: List[str] = Field(
         default_factory=lambda: [
             "http://localhost:3000",
@@ -80,6 +81,12 @@ class Settings(BaseSettings):
         """Construct base URL for deep links."""
         host = self.API_HOST if self.API_HOST != "0.0.0.0" else "localhost"
         return f"http://{host}:{self.API_PORT}"
+
+    @property
+    def auto_seed_mock_data(self) -> bool:
+        if self.AUTO_SEED_MOCK_DATA is not None:
+            return self.AUTO_SEED_MOCK_DATA
+        return self.ENVIRONMENT.lower() == "development"
 
     @property
     def reports_dir(self) -> str:
