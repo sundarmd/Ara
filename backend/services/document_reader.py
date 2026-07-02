@@ -98,7 +98,8 @@ def _save_page_images(doc_id: str, page: int, images: List[dict]) -> dict:
     """
     Save base64 images to disk and return mapping of image IDs to paths.
     """
-    os.makedirs(settings.IMAGES_DIR, exist_ok=True)
+    doc_images_dir = os.path.join(settings.IMAGES_DIR, doc_id)
+    os.makedirs(doc_images_dir, exist_ok=True)
     image_paths = {}
     
     for idx, img_data in enumerate(images):
@@ -117,8 +118,8 @@ def _save_page_images(doc_id: str, page: int, images: List[dict]) -> dict:
                 base64_data = base64_data.split(",", 1)[1]
         
         # Save image
-        filename = f"{doc_id}_{page}_{idx}.{ext}"
-        filepath = os.path.join(settings.IMAGES_DIR, filename)
+        filename = f"{page}_{idx}.{ext}"
+        filepath = os.path.join(doc_images_dir, filename)
         
         try:
             img_bytes = base64.b64decode(base64_data)
