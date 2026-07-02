@@ -29,7 +29,7 @@ This repository is a solution to the **Agentic AI - Technical Challenge**:
 
 ## Project Overview
 
-This is an **Agentic AI Research Assistant** for sell-side financial research report analysis. It's a multi-agent RAG (Retrieval-Augmented Generation) system built with FastAPI (backend) and React + Vite (frontend) that allows users to upload PDF research reports, extract structured recommendations, and query them using natural language.
+This is an **Agentic AI Research Assistant** for sell-side financial research report analysis. It's a tool-calling RAG (Retrieval-Augmented Generation) system built with FastAPI (backend) and React + Vite (frontend) that allows users to upload PDF research reports, extract structured recommendations, and query them using natural language.
 
 ## Implementation Status
 
@@ -40,11 +40,11 @@ This is an **Agentic AI Research Assistant** for sell-side financial research re
 - ✅ Semantic search using ChromaDB vector store (persisted)
 - ✅ Multi-turn chat interface with streaming responses
 - ✅ Agent orchestration using LangChain's AgentExecutor (open-source framework)
-- ✅ Tool-calling architecture with 4 agent tools
+- ✅ Tool-calling architecture with 4 specialist tools
 - ✅ FastAPI backend with `/chat/stream` endpoint (SSE streaming)
 - ✅ React + TypeScript frontend with real-time agent thoughts display
 
-**Agent Tools (Router/Planner via LangChain):**
+**Specialist Tools (Router/Planner via LangChain):**
 - ✅ `search_knowledge_base`: RAG search over uploaded research reports
 - ✅ `query_internal_views`: Mock internal Ara house views (SQLite-backed)
 - ✅ `get_analyst_intelligence`: Mock analyst profiles and track records

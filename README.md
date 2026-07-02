@@ -1,8 +1,8 @@
 # ARA - Agentic Research Assistant
 
-**Multi-Agent System for Financial Research Analysis**
+**Tool-Calling Research Assistant for Financial Research Analysis**
 
-A financial research assistant purpose-built for investment analysts. Powered by autonomous agent coordination, document structure preservation, and first-class citation tracking with PDF deep links.
+A financial research assistant purpose-built for investment analysts. Powered by a single tool-calling orchestrator, document structure preservation, and first-class citation tracking with PDF deep links.
 
 ---
 
@@ -32,33 +32,33 @@ docker compose up -d
 | **Inline Citations with PDF Deep Links** | Every claim traced to source: `[1]` opens `report.pdf#page=7` | Full auditability. Analysts verify AI responses against original documents in one click. |
 | **Document Structure Preservation** | Tables, figures, and headings kept intact during processing | Zero data loss. Financial tables render correctly. No broken charts or split rows. |
 | **Structured Recommendation Extraction** | Raw reports parsed into queryable `{asset, stance, confidence, bank, date}` | Enables "Show all Overweight calls on Tech" - queries impossible with standard RAG. |
-| **Autonomous Agent Coordination** | Four specialist agents orchestrated in parallel or sequence based on query complexity | Faster responses. Comparison queries run simultaneously. Dependent queries chain intelligently. |
-| **Real-Time Reasoning Transparency** | Agent decision-making streamed live via SSE | Enterprise-grade auditability. See exactly which agents fired and why. |
+| **Tool-Calling Orchestration** | One LangChain orchestrator selects specialist tools based on query context | Flexible answers across PDFs, structured recommendations, analyst profiles, and web search. |
+| **Real-Time Execution Transparency** | Tool-selection and response-generation traces streamed live via SSE | Enterprise-grade auditability. See which tools were used and why. |
 
 ---
 
-## Specialist Agents
+## Specialist Tools
 
-Four domain-expert agents, autonomously coordinated:
+One tool-calling orchestrator can invoke these domain-focused tools:
 
-| Agent | Domain Expertise | Execution |
+| Tool | Domain Expertise | Execution |
 |-------|------------------|-----------|
-| **Knowledge Base Agent** | Semantic search over research PDFs with page-level citation tracking | Vector similarity with metadata filtering |
-| **Internal Views Agent** | House investment stances and recommendations | Structured SQL queries |
-| **Analyst Intelligence Agent** | Analyst profiles, coverage areas, track records | Profile lookup with accuracy metrics |
-| **Web Research Agent** | Live market data, news, external research | Real-time API integration |
+| **Knowledge Base Tool** | Semantic search over research PDFs with page-level citation tracking | Vector similarity with metadata filtering |
+| **Internal Views Tool** | House investment stances and recommendations | Structured SQL queries |
+| **Analyst Intelligence Tool** | Analyst profiles, coverage areas, track records | Profile lookup with accuracy metrics |
+| **Web Research Tool** | Live market data, news, external research | Real-time API integration |
 
 **Execution Patterns:**
 
 ```
-Parallel:   "Compare Goldman's view with ours"
-            → Knowledge Base Agent + Internal Views Agent (simultaneous)
+Compare:    "Compare Goldman's view with ours"
+            → Knowledge Base Tool + Internal Views Tool
 
 Sequential: "Who covers companies in this report?"
-            → Knowledge Base Agent → entity extraction → Analyst Intelligence Agent
+            → Knowledge Base Tool → entity extraction → Analyst Intelligence Tool
 
 Iterative:  "Latest on German tech"
-            → Knowledge Base Agent → insufficient → Web Research Agent → aggregate
+            → Knowledge Base Tool → insufficient → Web Research Tool → aggregate
 ```
 
 ---
@@ -107,7 +107,7 @@ Enables structured queries:
 
 ## Citation System
 
-Every agent returns citations with full provenance:
+Every specialist tool returns citations with full provenance:
 
 ```json
 {
@@ -126,7 +126,7 @@ Every agent returns citations with full provenance:
 
 **Hover Preview:** See source metadata (bank, title, date) before clicking through.
 
-**Cross-Agent Aggregation:** Citations from multiple agents merged with unique IDs.
+**Cross-Tool Aggregation:** Citations from multiple tools merged with unique IDs.
 
 ---
 
@@ -189,7 +189,7 @@ The Thoughts Panel provides full visibility into agent decision-making for enter
 
 | Layer | Technology | Purpose |
 |-------|------------|---------|
-| Agent Framework | LangChain 0.3.x | ReAct pattern with autonomous coordination |
+| Agent Framework | LangChain 0.3.x | Tool-calling orchestration with specialist tools |
 | LLM | Mistral Large | Query analysis, planning, synthesis |
 | Vector Store | ChromaDB | Semantic search with metadata filtering |
 | Structured Store | SQLite | Recommendations, analysts, documents |
@@ -216,8 +216,8 @@ The Thoughts Panel provides full visibility into agent decision-making for enter
 ```
 ├── backend/
 │   ├── services/
-│   │   ├── agent_orchestrator.py  # Autonomous agent coordination
-│   │   ├── tools.py               # Specialist agent implementations
+│   │   ├── agent_orchestrator.py  # Tool-calling orchestration
+│   │   ├── tools.py               # Specialist tool implementations
 │   │   ├── chunker.py             # Structure-preserving chunking
 │   │   ├── document_reader.py     # OCR with segment classification
 │   │   ├── recommendations.py     # Structured extraction

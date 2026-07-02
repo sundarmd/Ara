@@ -1,7 +1,7 @@
 """
 Streaming chat service for SSE-based question answering.
 
-Wraps the Multi-Agent Orchestrator logic and emits events at each processing phase
+Wraps the tool-calling orchestrator logic and emits events at each processing phase
 for real-time frontend display of agent thoughts.
 """
 import logging
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 async def stream_chat_rag(request: ChatRequest) -> AsyncGenerator[str, None]:
     """
-    Streaming chat with multi-agent orchestration.
+    Streaming chat with tool-calling orchestration.
     Delegates processing to AgentOrchestrator.
     """
     logger.info(f"Processing streaming chat query via Orchestrator")

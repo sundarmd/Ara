@@ -2,7 +2,7 @@
 Agent orchestrator using LangChain and Mistral.
 
 This module handles:
-- Multi-agent workflow for query interpretation
+- Tool-calling workflow for query interpretation
 - Tool selection and execution (RAG, SQL, Web) using LangChain
 - Response generation with streaming thoughts
 """
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class AgentOrchestrator:
     """
-    Multi-agent orchestrator using LangChain + Mistral (via OpenAI Adapter) for planning and execution.
+    Tool-calling orchestrator using LangChain + Mistral (via OpenAI Adapter) for planning and execution.
     """
     
     def __init__(self):
