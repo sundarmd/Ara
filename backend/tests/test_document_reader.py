@@ -27,3 +27,30 @@ class DocumentReaderImageTests(unittest.TestCase):
             self.assertEqual(image_paths["img-1"], str(expected_path))
             self.assertTrue(expected_path.exists())
             self.assertFalse(old_flat_path.exists())
+
+
+class DocumentReaderMarkdownTests(unittest.TestCase):
+    def test_parse_markdown_classifies_blocks_and_tracks_section(self):
+        markdown = "\n\n".join([
+            "# Rates Strategy",
+            "Duration should outperform into year-end.",
+            "| Tenor | View |\n|---|---|\n| 10Y | Long |",
+            "![Curve chart](img-1)",
+        ])
+
+        segments = document_reader._parse_markdown_to_segments(
+            doc_id="doc-1",
+            page=7,
+            markdown=markdown,
+            current_section=None,
+            image_paths={"img-1": "/tmp/chart.png"},
+        )
+
+        self.assertEqual(
+            [segment.segment_type for segment in segments],
+            ["heading", "body", "table", "caption"],
+        )
+        self.assertEqual(segments[1].section, "Rates Strategy")
+        self.assertEqual(segments[2].section, "Rates Strategy")
+        self.assertEqual(segments[3].text, "Curve chart")
+        self.assertEqual(segments[3].image_path, "/tmp/chart.png")
