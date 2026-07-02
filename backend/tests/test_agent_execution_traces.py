@@ -129,3 +129,34 @@ class AgentExecutionTraceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(error_trace["details"][0]["error"], "vector store unavailable")
         self.assertEqual(error_trace["details"][0]["source_count"], 0)
         self.assertEqual(complete_event["sources"], [])
+
+    async def test_orchestrator_emits_typed_chat_errors(self):
+        class FakeAgentExecutor:
+            def __init__(self, agent, tools, verbose):
+                pass
+
+            async def astream_events(self, payload, version):
+                raise RuntimeError("chat provider failed")
+                yield
+
+        orchestrator = object.__new__(AgentOrchestrator)
+        orchestrator.llm = Mock()
+
+        request = ChatRequest(
+            messages=[{"role": "user", "content": "What are duration views?"}],
+        )
+        loop = asyncio.get_running_loop()
+        loop.slow_callback_duration = 1.0
+
+        with (
+            patch("langchain.agents.create_tool_calling_agent", return_value=Mock()),
+            patch("langchain.agents.AgentExecutor", FakeAgentExecutor),
+        ):
+            events = [parse_sse(event) async for event in orchestrator.process_query(request)]
+
+        error_event = [event for event in events if event["type"] == "error"][0]
+        self.assertEqual(error_event["code"], "chat_error")
+        self.assertEqual(
+            error_event["message"],
+            "I encountered an error processing your request: chat provider failed",
+        )

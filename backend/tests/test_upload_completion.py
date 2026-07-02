@@ -97,3 +97,32 @@ class UploadCompletionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(complete["recommendation_count"], 2)
         self.assertIn("doc_id", complete)
         self.assertEqual(events[-1]["step"], "done")
+
+    async def test_upload_error_event_includes_type_and_code(self):
+        upload = FakeUploadFile("report.pdf", b"%PDF-1.4\nreport")
+        doc_store = Mock()
+        doc_store.check_duplicate.return_value = None
+        doc_store.get_document_by_filename.return_value = None
+
+        ingest_pdf = AsyncMock(return_value={
+            "status": "error",
+            "error": "Mistral OCR rate limit reached. Wait a moment and try again.",
+        })
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with (
+                override_setting("DATA_DIR", tmpdir),
+                override_setting("REPORTS_DIR", tmpdir),
+                patch.object(main, "get_document_store", return_value=doc_store),
+                patch.object(main, "ingest_pdf", new=ingest_pdf),
+            ):
+                response = await main.upload_files(files=[upload], file=None)
+                events = await collect_events(response)
+
+        error_event = [event for event in events if event.get("step") == "error"][0]
+        self.assertEqual(error_event["type"], "error")
+        self.assertEqual(error_event["code"], "ingestion_error")
+        self.assertEqual(
+            error_event["detail"],
+            "Mistral OCR rate limit reached. Wait a moment and try again.",
+        )

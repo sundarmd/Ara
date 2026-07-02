@@ -2,14 +2,11 @@
 Metadata extraction service using LLM to parse document content.
 Extracts bank, asset class, and report date from the first page of PDFs.
 """
-import json
 import logging
 from typing import Optional
 from dataclasses import dataclass
 
-import httpx
-
-from config.settings import settings
+from services.errors import format_provider_error
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +18,6 @@ class DocumentMetadata:
     asset_class: str
     report_date: str  # ISO format YYYY-MM-DD, or UNKNOWN when unavailable
     title: Optional[str] = None
-
-
-
 
 
 async def extract_metadata_from_content(text: str) -> Optional[DocumentMetadata]:
@@ -79,5 +73,12 @@ async def extract_metadata_from_content(text: str) -> Optional[DocumentMetadata]
         )
             
     except Exception as e:
-        logger.error(f"Metadata extraction failed: {e}")
+        logger.error(
+            format_provider_error(
+                e,
+                provider_name="Mistral metadata extraction",
+                action="Metadata extraction failed",
+                api_key_name="MISTRAL_API_KEY",
+            )
+        )
         return None

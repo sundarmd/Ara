@@ -105,6 +105,17 @@ def _build_duplicate_upload_event(filename: str, existing_doc: Any) -> dict:
     }
 
 
+def _build_upload_error_event(filename: str, detail: str, code: str = "upload_error") -> dict:
+    return {
+        "type": "error",
+        "code": code,
+        "file": filename,
+        "step": "error",
+        "percent": 100,
+        "detail": detail,
+    }
+
+
 async def _spool_upload_file(upload_file: UploadFile, doc_id: str) -> dict:
     """Stream an UploadFile to disk while enforcing the configured size limit."""
     filename = upload_file.filename
@@ -247,7 +258,7 @@ async def upload_files(
             validation_error = _validate_spooled_pdf(item)
             if validation_error:
                 _cleanup_spooled_file(stored_path)
-                yield f"data: {json.dumps({'file': filename, 'step': 'error', 'percent': 100, 'detail': validation_error})}\n\n"
+                yield f"data: {json.dumps(_build_upload_error_event(filename, validation_error, 'upload_validation_error'))}\n\n"
                 continue
 
             duplicate_doc = doc_store.check_duplicate(file_hash)
@@ -278,6 +289,9 @@ async def upload_files(
                 
                 async def on_progress(step, percent, detail):
                     if step == "complete":
+                        return
+                    if step == "error":
+                        await queue.put(_build_upload_error_event(filename, detail, "ingestion_error"))
                         return
                     await queue.put({
                         "file": filename,
@@ -350,12 +364,12 @@ async def upload_files(
                     }
                     yield f"data: {json.dumps(complete_event)}\n\n"
                 elif result.get("status") == "error":
-                     yield f"data: {json.dumps({'file': filename, 'step': 'error', 'percent': 100, 'detail': result.get('error', 'Unknown Error')})}\n\n"
+                     yield f"data: {json.dumps(_build_upload_error_event(filename, result.get('error', 'Unknown Error'), 'ingestion_error'))}\n\n"
 
             except Exception as e:
                 logger.error(f"Error processing {filename}: {e}")
                 _cleanup_spooled_file(stored_path)
-                yield f"data: {json.dumps({'file': filename, 'step': 'error', 'percent': 100, 'detail': str(e)})}\n\n"
+                yield f"data: {json.dumps(_build_upload_error_event(filename, str(e)))}\n\n"
         
         # Signal end of stream
         yield f"data: {json.dumps({'step': 'done', 'total': total_files})}\n\n"

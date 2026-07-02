@@ -12,6 +12,7 @@ from langchain_core.tools import tool
 
 from config.settings import settings
 from services.document_store import get_document_store
+from services.errors import format_provider_error
 from services.rag import search_documents  # RAG
 from services.recommendations import get_recommendation_store
 
@@ -129,7 +130,11 @@ async def search_knowledge_base(
         return tool_success(tool_output)
     except Exception as e:
         logger.error(f"RAG tool error: {e}")
-        return tool_error(f"Error searching knowledge base: {str(e)}")
+        return tool_error(format_provider_error(
+            e,
+            provider_name="knowledge base search",
+            action="Error searching knowledge base",
+        ))
 
 class QueryInternalViewsInput(BaseModel):
     asset_class: Optional[str] = Field(None, description="Filter by asset class (e.g., 'equity', 'fixed_income')")
@@ -181,7 +186,11 @@ async def query_internal_views(
 
     except Exception as e:
         logger.error(f"Internal view tool error: {e}")
-        return tool_error(f"Error querying internal views: {str(e)}")
+        return tool_error(format_provider_error(
+            e,
+            provider_name="internal views",
+            action="Error querying internal views",
+        ))
 
 class AnalystIntelligenceInput(BaseModel):
     analyst_name: Optional[str] = Field(None, description="Name of the analyst (e.g., 'Sarah Chen')")
@@ -222,7 +231,11 @@ async def get_analyst_intelligence(
 
     except Exception as e:
         logger.error(f"Analyst tool error: {e}")
-        return tool_error(f"Error querying analyst intelligence: {str(e)}")
+        return tool_error(format_provider_error(
+            e,
+            provider_name="analyst intelligence",
+            action="Error querying analyst intelligence",
+        ))
 
 @tool
 async def web_search(query: str) -> str:
@@ -273,7 +286,12 @@ async def web_search(query: str) -> str:
 
     except Exception as e:
         logger.error(f"Web search error: {e}")
-        return tool_error(f"Error performing web search: {str(e)}")
+        return tool_error(format_provider_error(
+            e,
+            provider_name="Tavily web search",
+            action="Error performing web search",
+            api_key_name="TAVILY_API_KEY",
+        ))
 
 # List of tools to be bound to the LangChain agent
 # Renamed query_recommendations -> query_internal_views

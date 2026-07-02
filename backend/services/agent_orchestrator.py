@@ -14,6 +14,7 @@ from typing import Optional, Dict, Any, AsyncGenerator
 from langchain_openai import ChatOpenAI
 
 from config.settings import settings
+from services.errors import format_chat_error
 from services.tools import AVAILABLE_TOOLS, reset_search_filter_scope, set_search_filter_scope
 from models.schemas import ChatRequest, StreamEventType
 
@@ -171,9 +172,11 @@ class AgentOrchestrator:
                         })
             
         except Exception as e:
+            error_message = format_chat_error(e)
             logger.error(f"LangChain Orchestrator error: {e}", exc_info=True)
             yield self._format_event(StreamEventType.ERROR, {
-                "message": f"I encountered an error processing your request: {str(e)}"
+                "message": error_message,
+                "code": "chat_error",
             })
         finally:
             if search_filter_token is not None:

@@ -12,13 +12,13 @@ import logging
 import os
 import shutil
 from typing import Optional, List, Callable, Awaitable
-import httpx
 
 from models.schemas import Chunk, Recommendation
 from config.settings import settings
 from services.document_reader import parse_pdf_to_segments
 from services.chunker import build_chunks
 from services.database import ResearchVectorStore, get_vector_store
+from services.errors import format_ingestion_error
 from services.recommendations import (
     extract_recommendations_with_mistral,
     get_recommendation_store,
@@ -141,10 +141,13 @@ async def ingest_pdf(
 
     vector_store: Optional[ResearchVectorStore] = None
     
+    ingestion_provider_name = "Mistral OCR"
+
     try:
         logger.info(f"Starting ingestion for document {doc_id}")
         
         # 1. Parse PDF to segments using Mistral OCR (0-25%)
+        ingestion_provider_name = "Mistral OCR"
         await emit("ocr", 5, "Reading PDF with Mistral OCR...")
         segments = await parse_pdf_to_segments(doc_id=doc_id, file_path=file_path)
         
@@ -158,6 +161,7 @@ async def ingest_pdf(
         await emit("ocr", 25, f"Extracted {len(segments)} segments")
         
         # 2. Auto-extract metadata if not provided (25-35%)
+        ingestion_provider_name = "Mistral metadata extraction"
         await emit("metadata", 28, "Extracting metadata...")
         if not all([bank, asset_class, report_date]):
             first_pages_text = "\n".join([s.text for s in segments[:3]])
@@ -183,6 +187,7 @@ async def ingest_pdf(
         await emit("metadata", 35, f"{bank} • {asset_class}")
         
         # 3. Build chunks using Smart Chunker (35-45%)
+        ingestion_provider_name = "ingestion pipeline"
         await emit("chunking", 38, "Building smart chunks...")
         chunks = build_chunks(
             doc_id=doc_id,
@@ -202,12 +207,14 @@ async def ingest_pdf(
         
         # 4. Index in vector store (45-75%)
         # Note: Vector store handles embedding generation internally
+        ingestion_provider_name = "Mistral embeddings"
         await emit("indexing", 50, "Indexing in vector database...")
         vector_store = get_vector_store()
         await vector_store.index_chunks(chunks)
         await emit("indexing", 75, f"Indexed {len(chunks)} chunks")
         
         # 5. Extract structured recommendations (75-95%)
+        ingestion_provider_name = "Mistral recommendations"
         await emit("recommendations", 78, "Extracting structured recommendations...")
         raw_markdown = "\n\n".join([s.text for s in segments])
         recommendations: List[Recommendation] = await extract_recommendations_with_mistral(
@@ -232,29 +239,10 @@ async def ingest_pdf(
         return result
         
     except Exception as e:
-        error_message = _format_ingestion_error(e)
+        error_message = format_ingestion_error(e, provider_name=ingestion_provider_name)
         logger.error(f"Ingestion error for {doc_id}: {e}")
         result["status"] = "error"
         result["error"] = error_message
         result["cleanup"] = _cleanup_failed_ingestion(doc_id, file_path, vector_store)
         await emit("error", 100, error_message)
         return result
-
-
-def _format_ingestion_error(error: Exception) -> str:
-    """Convert provider errors into messages that are useful in the upload UI."""
-    if isinstance(error, httpx.HTTPStatusError):
-        status_code = error.response.status_code
-
-        if status_code == 401:
-            return "Mistral OCR authorization failed. Check MISTRAL_API_KEY in .env and restart the backend."
-
-        if status_code == 429:
-            return "Mistral OCR rate limit reached. Wait a moment and try again."
-
-        return f"Mistral OCR request failed with HTTP {status_code}."
-
-    if isinstance(error, httpx.RequestError):
-        return "Could not reach Mistral OCR. Check your network connection and try again."
-
-    return str(error)
