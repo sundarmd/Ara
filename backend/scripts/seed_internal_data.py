@@ -182,7 +182,7 @@ async def seed_data():
             InternalView(
                 id=reco_id,
                 doc_id=None,
-                bank="AllianzGI",
+                bank="Ara",
                 source_type="internal_view",
                 asset_class=r["asset_class"],
                 sub_asset=r["sub_asset"],

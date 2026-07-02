@@ -86,7 +86,7 @@ export function ThoughtsPanel({ thoughts, isThinking, startTime }: ThoughtsPanel
                     <ChevronRight className="w-4 h-4" />
                 )}
 
-                <Brain className={`w-4 h-4 ${isThinking ? 'animate-pulse text-[#003781]' : ''}`} />
+                <Brain className={`w-4 h-4 ${isThinking ? 'animate-pulse text-primary' : ''}`} />
 
                 <span>
                     {isThinking ? (

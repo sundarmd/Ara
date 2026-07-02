@@ -66,7 +66,7 @@ export function DropZone({ children }: DropZoneProps) {
 
     return (
         <div
-            className="relative min-h-screen"
+            className="relative min-h-[100dvh]"
             onDragEnter={handleDragEnter}
             onDragLeave={handleDragLeave}
             onDragOver={handleDragOver}
@@ -76,9 +76,9 @@ export function DropZone({ children }: DropZoneProps) {
 
             {/* Full-page overlay when dragging */}
             {isDragging && (
-                <div className="fixed inset-0 z-50 bg-[#003781]/10 backdrop-blur-sm flex items-center justify-center pointer-events-none">
-                    <div className="bg-[var(--color-surface)] border-2 border-dashed border-[#003781] rounded-2xl p-10 text-center shadow-2xl">
-                        <Upload className="w-12 h-12 mx-auto mb-3 text-[#003781]" />
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm pointer-events-none">
+                    <div className="rounded-[28px] border-2 border-dashed border-primary/60 bg-[var(--color-surface)] p-10 text-center shadow-[0_28px_90px_-58px_rgba(15,23,42,0.8)]">
+                        <Upload className="mx-auto mb-3 h-12 w-12 text-primary" />
                         <h2 className="text-lg font-semibold text-[var(--color-text)]">
                             Drop to upload
                         </h2>
@@ -95,7 +95,7 @@ export function DropZone({ children }: DropZoneProps) {
                                 {/* Header with icon and filename */}
                                 <div className="flex items-center gap-2 mb-2">
                                     {file.status === 'processing' && (
-                                        <FileText className="w-4 h-4 text-[#003781] flex-shrink-0" />
+                                        <FileText className="w-4 h-4 text-primary flex-shrink-0" />
                                     )}
                                     {file.status === 'complete' && (
                                         <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -110,7 +110,7 @@ export function DropZone({ children }: DropZoneProps) {
                                         {file.filename}
                                     </span>
                                     {file.status === 'processing' && (
-                                        <span className="text-xs font-mono text-[#003781]">
+                                        <span className="text-xs font-mono text-primary">
                                             {file.percent}%
                                         </span>
                                     )}
@@ -131,7 +131,7 @@ export function DropZone({ children }: DropZoneProps) {
                                 {/* Result badges */}
                                 {(file.status === 'complete' || file.status === 'duplicate') && file.bank && (
                                     <div className="mt-2 flex gap-2">
-                                        <span className="text-xs px-2 py-0.5 rounded bg-[#003781]/10 text-[#003781] font-medium">
+                                        <span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary font-medium">
                                             {file.bank}
                                         </span>
                                         <span className="text-xs px-2 py-0.5 rounded bg-[var(--color-border)] text-[var(--color-text-muted)]">

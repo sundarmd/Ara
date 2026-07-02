@@ -11,6 +11,7 @@ This module owns all indexing logic:
 import logging
 from typing import Optional, List, Callable, Awaitable
 from datetime import date
+import httpx
 
 from models.schemas import Chunk, Recommendation
 from services.document_reader import parse_pdf_to_segments
@@ -161,8 +162,28 @@ async def ingest_pdf(
         return result
         
     except Exception as e:
+        error_message = _format_ingestion_error(e)
         logger.error(f"Ingestion error for {doc_id}: {e}")
         result["status"] = "error"
-        result["error"] = str(e)
-        await emit("error", 100, f"Error: {str(e)}")
+        result["error"] = error_message
+        await emit("error", 100, error_message)
         return result
+
+
+def _format_ingestion_error(error: Exception) -> str:
+    """Convert provider errors into messages that are useful in the upload UI."""
+    if isinstance(error, httpx.HTTPStatusError):
+        status_code = error.response.status_code
+
+        if status_code == 401:
+            return "Mistral OCR authorization failed. Check MISTRAL_API_KEY in .env and restart the backend."
+
+        if status_code == 429:
+            return "Mistral OCR rate limit reached. Wait a moment and try again."
+
+        return f"Mistral OCR request failed with HTTP {status_code}."
+
+    if isinstance(error, httpx.RequestError):
+        return "Could not reach Mistral OCR. Check your network connection and try again."
+
+    return str(error)

@@ -28,43 +28,45 @@ function App() {
       <DocumentsProvider>
         <DropZone>
           <Layout>
-            <div className="flex flex-col h-[calc(100vh-5rem)]">
+            <div className="flex h-[calc(100dvh-3rem)] min-h-[560px] flex-col">
               {hasMessages ? (
                 <>
-                  {/* Messages area */}
                   <MessageList messages={messages} isLoading={isLoading} isThinking={isThinking} />
 
-                  {/* Error display */}
                   {error && (
-                    <div className="mx-4 mb-4 p-3 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm">
+                    <div className="mx-4 mb-4 rounded-[16px] border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
                       {error}
                     </div>
                   )}
 
-                  {/* Input at bottom */}
-                  <div className="p-4 border-t border-[var(--color-border)]">
-                    <div className="max-w-3xl mx-auto">
+                  <div className="border-t border-border/70 p-4">
+                    <div className="mx-auto max-w-3xl">
                       <ChatInput onSend={sendMessage} disabled={isLoading} />
                     </div>
                   </div>
                 </>
               ) : (
-                /* Empty state - centered */
-                <div className="flex-1 flex flex-col items-center justify-center px-4">
-                  <p className="text-[var(--color-text-muted)] max-w-md text-center mb-8">
-                    Ask questions about cross-asset research reports, compare bank recommendations, or explore investment themes.
-                  </p>
-
-                  <div className="w-full max-w-2xl">
-                    <ChatInput onSend={sendMessage} disabled={isLoading} />
-                  </div>
-                </div>
+                <EmptyChatState onPrompt={sendMessage} isLoading={isLoading} />
               )}
             </div>
           </Layout>
         </DropZone>
       </DocumentsProvider>
     </TooltipProvider>
+  );
+}
+
+function EmptyChatState({ onPrompt, isLoading }: { onPrompt: (message: string) => void; isLoading: boolean }) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col items-center justify-center px-2 py-10">
+      <p className="mb-7 max-w-4xl text-center text-base leading-relaxed text-muted-foreground">
+        Ask Ara to compare cross-asset research, evaluate portfolio views, and cite source pages.
+      </p>
+
+      <div className="w-full min-w-0 max-w-3xl">
+        <ChatInput onSend={onPrompt} disabled={isLoading} placeholder="Ask about cross-asset research..." />
+      </div>
+    </div>
   );
 }
 

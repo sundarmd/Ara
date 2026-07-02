@@ -65,7 +65,7 @@ async def query_internal_views(
     include_history: bool = False
 ) -> str:
     """
-    Get AllianzGI's HOUSE VIEWS and investment stances.
+    Get Ara's HOUSE VIEWS and investment stances.
     Use this for questions like "What is our view on Tech?" or "Are we overweight bonds?".
     Set include_history=True to see past performance.
     """
@@ -75,7 +75,7 @@ async def query_internal_views(
         is_active = None if include_history else True
         
         recos = await store.get_by_filters(
-            bank="AllianzGI", # Force internal
+            bank="Ara", # Force internal
             asset_class=asset_class,
             source_type="internal_view",
             is_active=is_active
@@ -88,13 +88,13 @@ async def query_internal_views(
         for i, r in enumerate(recos):
             # Format text clearly distinguishing current vs historical
             status_str = "CURRENT VIEW" if r.is_active else f"HISTORICAL (Outcome: {r.outcome})"
-            text = f"{status_str}: AllianzGI is {r.stance} on {r.asset_class} ({r.sub_asset}). Rationale: {r.rationale} [{r.horizon}]"
+            text = f"{status_str}: Ara is {r.stance} on {r.asset_class} ({r.sub_asset}). Rationale: {r.rationale} [{r.horizon}]"
 
             source_entry = {
                 "citation_id": i + 1,
                 "text": text,
                 "metadata": {
-                    "bank": "AllianzGI Internal",
+                    "bank": "Ara Internal",
                     "title": "Investment Committee Database",
                     "report_date": r.date or "Current"
                 }
@@ -118,7 +118,7 @@ async def get_analyst_intelligence(
     sector: Optional[str] = None
 ) -> str:
     """
-    Look up detailed profiles, bios, and track records of AllianzGI analysts.
+    Look up detailed profiles, bios, and track records of Ara analysts.
     Use this for questions like "Who covers AI?" or "What is Sarah's background?".
     """
     try:
@@ -136,7 +136,7 @@ async def get_analyst_intelligence(
                 "citation_id": i + 1,
                 "text": text,
                 "metadata": {
-                    "bank": "AllianzGI HR",
+                    "bank": "Ara HR",
                     "title": "Analyst Directory",
                     "report_date": "Current"
                 }

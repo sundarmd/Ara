@@ -8,12 +8,12 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
     return (
-        <div className="flex h-screen bg-[var(--color-bg)] text-[var(--color-text)] transition-colors duration-300 overflow-hidden">
+        <div className="flex min-h-[100dvh] max-h-[100dvh] overflow-hidden bg-background text-foreground transition-colors duration-300">
             <Sidebar />
-            <div className="flex-1 flex flex-col min-w-0">
-                <ScrollArea className="flex-1">
-                    <main className="px-4 py-6">
-                        <div className="max-w-5xl mx-auto w-full">
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+                <ScrollArea className="min-w-0 flex-1">
+                    <main className="overflow-hidden px-4 py-4 md:px-6 md:py-6">
+                        <div className="mx-auto w-full max-w-6xl min-w-0">
                             {children}
                         </div>
                     </main>

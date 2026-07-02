@@ -85,7 +85,7 @@ export function UploadModal({ file, onClose, onSuccess }: UploadModalProps) {
 
                 {/* File info */}
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--color-bg)] mb-4">
-                    <FileText className="w-8 h-8 text-[#003781]" />
+                    <FileText className="w-8 h-8 text-primary" />
                     <div className="flex-1 min-w-0">
                         <p className="font-medium text-[var(--color-text)] truncate">{file.name}</p>
                         <p className="text-xs text-[var(--color-text-muted)]">
@@ -148,7 +148,7 @@ export function UploadModal({ file, onClose, onSuccess }: UploadModalProps) {
                 <button
                     onClick={handleUpload}
                     disabled={!bank || !assetClass || !reportDate || isUploading}
-                    className="w-full py-2.5 px-4 bg-[#003781] text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:bg-[#002a61] transition-colors"
+                    className="w-full py-2.5 px-4 bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors active:scale-[0.98]"
                 >
                     {isUploading ? (
                         <>

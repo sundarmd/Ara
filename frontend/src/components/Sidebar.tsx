@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
+import type { ComponentType } from 'react';
+import type { IconProps } from '@phosphor-icons/react';
 import {
-    Github,
+    Books,
+    CaretDown,
+    FilePdf,
+    GithubLogo,
+    Moon,
+    SidebarSimple,
+    Sparkle,
     Sun,
-    FileText,
-    BookOpen,
-    PanelLeft,
-    ChevronDown,
-    Trash2
-} from 'lucide-react';
+    Trash,
+} from '@phosphor-icons/react';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { api } from '../services/api';
 import { Button } from '@/components/ui/button';
@@ -26,7 +30,13 @@ import {
 } from "@/components/ui/collapsible"
 
 export function Sidebar() {
-    const [isOpen, setIsOpen] = useState(true);
+    const [isOpen, setIsOpen] = useState(() => {
+        if (typeof window === 'undefined') {
+            return true;
+        }
+
+        return window.matchMedia('(min-width: 768px)').matches;
+    });
     const [isSourcesOpen, setIsSourcesOpen] = useState(true);
     const { isDark, toggle } = useDarkMode();
     const { documents, deleteDocument } = useDocuments();
@@ -38,31 +48,50 @@ export function Sidebar() {
         }
     }, [documents.length]);
 
+    useEffect(() => {
+        const query = window.matchMedia('(max-width: 767px)');
+        const collapseOnMobile = () => {
+            if (query.matches) {
+                setIsOpen(false);
+            }
+        };
+
+        collapseOnMobile();
+        query.addEventListener('change', collapseOnMobile);
+
+        return () => {
+            query.removeEventListener('change', collapseOnMobile);
+        };
+    }, []);
+
     const toggleSidebar = () => setIsOpen(!isOpen);
 
     return (
         <TooltipProvider>
             <aside
                 className={cn(
-                    "flex flex-col border-r bg-card transition-all duration-300 ease-in-out h-screen sticky top-0 z-20",
-                    isOpen ? 'w-[240px]' : 'w-[68px]'
+                    "sticky top-0 flex h-[100dvh] min-h-[100dvh] shrink-0 flex-col overflow-hidden border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar))] text-[hsl(var(--sidebar-foreground))] shadow-[inset_-1px_0_0_hsl(var(--sidebar-edge))] transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+                    isOpen ? 'w-[272px]' : 'w-[76px]'
                 )}
             >
-                {/* Header */}
                 <div className={cn(
-                    "flex items-center transition-all duration-300 backdrop-blur-md bg-card/80 z-30 sticky top-0",
-                    isOpen ? "h-12 px-3 flex-row" : "h-auto py-4 flex-col justify-center gap-4"
+                    "relative border-b border-[hsl(var(--sidebar-border))] p-3",
+                    isOpen ? "h-[76px]" : "h-[82px]"
                 )}>
                     {isOpen ? (
-                        <>
-                            {/* Expanded: Logo Left, Toggle Right */}
-                            <div className="flex-1 flex items-center gap-2 font-semibold text-primary whitespace-nowrap overflow-hidden animate-in fade-in duration-300 min-w-0">
-                                <div className="dark:bg-white dark:rounded dark:p-0.5 flex items-center shrink-0">
-                                    <img
-                                        src="/allianz-logo.png"
-                                        alt="Allianz Global Investors"
-                                        className="h-6 w-auto"
-                                    />
+                        <div className="flex h-full items-center gap-3">
+                            <div className="flex min-w-0 flex-1 items-center gap-3 rounded-[18px] border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-panel))] px-3 py-2 shadow-[inset_0_1px_0_hsl(var(--sidebar-highlight))]">
+                                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-logo-bg))] shadow-[0_12px_28px_-20px_hsl(var(--primary)/0.75)]">
+                                    <img src="/ara-generated-mark.png" alt="Ara" className="h-8 w-8 object-contain" />
+                                    <span className="pointer-events-none absolute inset-x-1 top-0 h-px bg-[hsl(var(--sidebar-highlight))]" />
+                                </div>
+                                <div className="min-w-0">
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="truncate text-[18px] font-semibold leading-none tracking-tight">Ara</span>
+                                    </div>
+                                    <p className="mt-1 truncate text-[11px] font-medium uppercase tracking-[0.16em] text-[hsl(var(--sidebar-muted))]">
+                                        Research OS
+                                    </p>
                                 </div>
                             </div>
 
@@ -72,9 +101,9 @@ export function Sidebar() {
                                         variant="ghost"
                                         size="icon"
                                         onClick={toggleSidebar}
-                                        className="text-muted-foreground hover:text-foreground h-8 w-8 shrink-0 ml-2"
+                                        className="h-10 w-10 shrink-0 rounded-[14px] text-[hsl(var(--sidebar-muted))] transition-all duration-200 hover:bg-[hsl(var(--sidebar-panel))] hover:text-[hsl(var(--sidebar-foreground))] active:scale-[0.96]"
                                     >
-                                        <PanelLeft className="w-5 h-5" />
+                                        <SidebarSimple size={20} weight="duotone" />
                                         <span className="sr-only">Close Sidebar</span>
                                     </Button>
                                 </TooltipTrigger>
@@ -82,32 +111,26 @@ export function Sidebar() {
                                     <p>Close Sidebar</p>
                                 </TooltipContent>
                             </Tooltip>
-                        </>
+                        </div>
                     ) : (
-                        /* Collapsed: Icon transforms to Toggle on Hover */
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={toggleSidebar}
-                                    className="h-9 w-9 shrink-0 group relative flex items-center justify-center"
+                                    className="group relative mx-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-panel))] shadow-[inset_0_1px_0_hsl(var(--sidebar-highlight))] transition-all duration-200 hover:-translate-y-0.5 hover:text-[hsl(var(--sidebar-foreground))] active:scale-[0.96]"
                                 >
-                                    {/* Default: Allianz Icon */}
                                     <div
-                                        className="absolute inset-0 flex items-center justify-center transition-opacity duration-200 group-hover:opacity-0"
+                                        className="absolute inset-0 flex items-center justify-center transition-all duration-200 group-hover:opacity-0 group-hover:scale-90"
                                     >
-                                        <div className="w-8 h-8 flex items-center justify-center dark:bg-white dark:rounded-full dark:p-0.5">
-                                            <img
-                                                src="/allianz-icon.png"
-                                                alt="AGI"
-                                                className="w-8 h-8 object-contain"
-                                            />
+                                        <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-[14px] border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-logo-bg))] shadow-[0_12px_28px_-20px_hsl(var(--primary)/0.75)]">
+                                            <img src="/ara-generated-mark.png" alt="Ara" className="h-8 w-8 object-contain" />
+                                            <span className="pointer-events-none absolute inset-x-1 top-0 h-px bg-[hsl(var(--sidebar-highlight))]" />
                                         </div>
                                     </div>
 
-                                    {/* Hover: Toggle Icon */}
-                                    <PanelLeft className="w-5 h-5 opacity-0 scale-90 transition-all duration-200 group-hover:opacity-100 group-hover:scale-100 text-muted-foreground group-hover:text-foreground" />
+                                    <SidebarSimple size={20} weight="duotone" className="scale-90 opacity-0 transition-all duration-200 group-hover:scale-100 group-hover:opacity-100" />
                                     <span className="sr-only">Open Sidebar</span>
                                 </Button>
                             </TooltipTrigger>
@@ -118,100 +141,119 @@ export function Sidebar() {
                     )}
                 </div>
 
-                {/* Content */}
-                <div className="flex-1 overflow-y-auto py-1 px-2 space-y-0 scrollbar-hide">
-                    {/* Dark Mode Button */}
-                    <SidebarButton
-                        icon={Sun}
-                        label={isDark ? "Light Mode" : "Dark Mode"}
-                        onClick={toggle}
-                        isOpen={isOpen}
-                    />
+                <nav className="flex-1 overflow-y-auto px-3 py-4 scrollbar-hide">
+                    <div className={cn("space-y-1.5", !isOpen && "flex flex-col items-center")}>
+                        <SidebarButton
+                            icon={isDark ? Sun : Moon}
+                            label={isDark ? "Light Mode" : "Dark Mode"}
+                            onClick={toggle}
+                            isOpen={isOpen}
+                        />
 
-                    {/* GitHub Button */}
-                    <SidebarButton
-                        icon={Github}
-                        label="GitHub Repo"
-                        href="https://github.com/sundarmd/agi-technical-challenge"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        isOpen={isOpen}
-                    />
+                        <SidebarButton
+                            icon={GithubLogo}
+                            label="GitHub Repo"
+                            href="https://github.com/sundarmd/Ara"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            isOpen={isOpen}
+                        />
 
-                    {/* Sources Section - Collapsible */}
-                    <div>
-                        {isOpen ? (
-                            <Collapsible
-                                open={isSourcesOpen}
-                                onOpenChange={setIsSourcesOpen}
-                                className="space-y-0"
-                            >
-                                <CollapsibleTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        className="w-full justify-between h-8 px-2 hover:bg-muted/50 text-muted-foreground hover:text-foreground group"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <BookOpen className="w-4 h-4 shrink-0" />
-                                            <span className="font-medium text-sm">Knowledge Base ({documents.length})</span>
-                                        </div>
-                                        <ChevronDown className={cn(
-                                            "w-3 h-3 transition-transform duration-200",
-                                            !isSourcesOpen && "-rotate-90"
-                                        )} />
-                                    </Button>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent className="animate-slide-down">
-                                    <div className="pb-1">
-                                        {documents.length === 0 ? (
-                                            <div className="px-2 py-1 text-xs text-muted-foreground italic pl-9">
-                                                No files uploaded
+                        <div>
+                            {isOpen ? (
+                                <Collapsible
+                                    open={isSourcesOpen}
+                                    onOpenChange={setIsSourcesOpen}
+                                    className="pt-2"
+                                >
+                                    <CollapsibleTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            className="group h-11 w-full justify-between rounded-[15px] px-3 text-[hsl(var(--sidebar-muted))] transition-all duration-200 hover:bg-[hsl(var(--sidebar-panel))] hover:text-[hsl(var(--sidebar-foreground))] active:scale-[0.99]"
+                                        >
+                                            <div className="flex min-w-0 items-center gap-3">
+                                                <Books size={19} weight="duotone" className="shrink-0" />
+                                                <span className="truncate text-sm font-medium">Knowledge Base</span>
                                             </div>
-                                        ) : (
-                                            documents.map((doc) => (
-                                                <div
-                                                    key={doc.doc_id}
-                                                    className="group flex items-center gap-1 h-8 px-2 rounded-md hover:bg-muted/50 transition-colors"
-                                                >
-                                                    <a
-                                                        href={api.getStreamUrl(`/files/${doc.doc_id}.pdf`)}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="flex-1 flex items-center gap-3 min-w-0 text-muted-foreground hover:text-foreground transition-colors"
-                                                    >
-                                                        <FileText className="w-3.5 h-3.5 shrink-0" />
-                                                        <span className="truncate text-sm">{doc.filename}</span>
-                                                    </a>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (confirm(`Delete "${doc.filename}"?\n\nThis will permanently remove the document and all associated data.`)) {
-                                                                deleteDocument(doc.doc_id);
-                                                            }
-                                                        }}
-                                                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-all shrink-0"
-                                                        title="Delete document"
-                                                    >
-                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                    </button>
+                                            <div className="flex items-center gap-2">
+                                                <span className="rounded-full border border-[hsl(var(--sidebar-border))] px-2 py-0.5 text-[11px] font-semibold text-[hsl(var(--sidebar-muted))]">
+                                                    {documents.length}
+                                                </span>
+                                                <CaretDown
+                                                    size={14}
+                                                    weight="bold"
+                                                    className={cn(
+                                                        "transition-transform duration-200",
+                                                        !isSourcesOpen && "-rotate-90"
+                                                    )}
+                                                />
+                                            </div>
+                                        </Button>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent>
+                                        <div className="mt-2 space-y-1 border-l border-[hsl(var(--sidebar-border))] pl-3">
+                                            {documents.length === 0 ? (
+                                                <div className="rounded-[14px] border border-dashed border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-panel))] px-3 py-3">
+                                                    <div className="flex items-start gap-2 text-[hsl(var(--sidebar-muted))]">
+                                                        <Sparkle size={16} weight="duotone" className="mt-0.5 shrink-0 text-primary" />
+                                                        <div>
+                                                            <p className="text-xs font-medium text-[hsl(var(--sidebar-foreground))]">No files uploaded</p>
+                                                            <p className="mt-1 text-[11px] leading-4">Drop research PDFs anywhere in the app.</p>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            ))
-                                        )}
-                                    </div>
-                                </CollapsibleContent>
-                            </Collapsible>
-                        ) : (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <div className="flex justify-center py-2 text-muted-foreground hover:text-foreground cursor-default transition-colors">
-                                        <BookOpen className="w-5 h-5" />
-                                    </div>
-                                </TooltipTrigger>
-                                <TooltipContent side="right">
-                                    <p>Knowledge Base ({documents.length})</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        )}
+                                            ) : (
+                                                documents.map((doc) => (
+                                                    <div
+                                                        key={doc.doc_id}
+                                                        className="group flex min-h-10 items-center gap-1 rounded-[14px] px-2 transition-colors hover:bg-[hsl(var(--sidebar-panel))]"
+                                                    >
+                                                        <a
+                                                            href={api.getStreamUrl(`/files/${doc.doc_id}.pdf`)}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="flex min-w-0 flex-1 items-center gap-2 text-[hsl(var(--sidebar-muted))] transition-colors hover:text-[hsl(var(--sidebar-foreground))]"
+                                                        >
+                                                            <FilePdf size={16} weight="duotone" className="shrink-0" />
+                                                            <span className="truncate text-sm font-medium">{doc.filename}</span>
+                                                        </a>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (confirm(`Delete "${doc.filename}"?\n\nThis will permanently remove the document and all associated data.`)) {
+                                                                    deleteDocument(doc.doc_id);
+                                                                }
+                                                            }}
+                                                            className="shrink-0 rounded-lg p-1 text-[hsl(var(--sidebar-muted))] opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100 active:scale-[0.94]"
+                                                            title="Delete document"
+                                                        >
+                                                            <Trash size={15} weight="duotone" />
+                                                        </button>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </CollapsibleContent>
+                                </Collapsible>
+                            ) : (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div className="flex h-11 w-11 cursor-default items-center justify-center rounded-[15px] text-[hsl(var(--sidebar-muted))] transition-colors hover:bg-[hsl(var(--sidebar-panel))] hover:text-[hsl(var(--sidebar-foreground))]">
+                                            <Books size={21} weight="duotone" />
+                                        </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right">
+                                        <p>Knowledge Base ({documents.length})</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            )}
+                        </div>
+                    </div>
+                </nav>
+
+                <div className={cn("border-t border-[hsl(var(--sidebar-border))] p-3", !isOpen && "flex justify-center")}>
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-panel))] text-sm font-semibold text-[hsl(var(--sidebar-foreground))] shadow-[inset_0_1px_0_hsl(var(--sidebar-highlight))]">
+                        S
                     </div>
                 </div>
             </aside>
@@ -219,33 +261,38 @@ export function Sidebar() {
     );
 }
 
-interface SidebarButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-    icon: React.ElementType;
+type SidebarIcon = ComponentType<IconProps>;
+
+interface SidebarButtonProps {
+    icon: SidebarIcon;
     label: string;
     isOpen: boolean;
     href?: string;
     target?: string;
     rel?: string;
+    className?: string;
+    onClick?: () => void;
+    disabled?: boolean;
 }
 
-function SidebarButton({ icon: Icon, label, isOpen, href, className, ...props }: SidebarButtonProps) {
+function SidebarButton({ icon: Icon, label, isOpen, href, target, rel, className, onClick, disabled }: SidebarButtonProps) {
     const content = (
         <>
-            <Icon className="w-4 h-4 shrink-0" />
-            {isOpen && <span className="truncate text-sm">{label}</span>}
+            <Icon size={19} weight="duotone" className="shrink-0" />
+            {isOpen && <span className="truncate text-sm font-medium">{label}</span>}
         </>
     );
 
     const buttonClass = cn(
-        "w-full justify-start items-center gap-3 h-8 px-2 font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50",
-        !isOpen && "justify-center px-0",
+        "h-11 w-full justify-start gap-3 rounded-[15px] px-3 text-[hsl(var(--sidebar-muted))] transition-all duration-200 hover:bg-[hsl(var(--sidebar-panel))] hover:text-[hsl(var(--sidebar-foreground))] active:scale-[0.98]",
+        !isOpen && "h-11 w-11 justify-center px-0",
         className
     );
 
     if (href) {
         return (
             <Button variant="ghost" className={buttonClass} asChild>
-                <a href={href} {...props as any}>
+                <a href={href} target={target} rel={rel}>
                     {content}
                 </a>
             </Button>
@@ -253,7 +300,7 @@ function SidebarButton({ icon: Icon, label, isOpen, href, className, ...props }:
     }
 
     return (
-        <Button variant="ghost" className={buttonClass} {...props}>
+        <Button variant="ghost" className={buttonClass} onClick={onClick} disabled={disabled}>
             {content}
         </Button>
     );

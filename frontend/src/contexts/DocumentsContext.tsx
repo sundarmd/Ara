@@ -71,6 +71,8 @@ export function DocumentsProvider({ children }: { children: ReactNode }) {
 
         const formData = new FormData();
         files.forEach(file => formData.append('files', file));
+        let hadErrors = false;
+        const shownErrorDetails = new Set<string>();
 
         try {
             const response = await fetch(`${API_BASE_URL}/upload`, {
@@ -78,10 +80,20 @@ export function DocumentsProvider({ children }: { children: ReactNode }) {
                 body: formData,
             });
 
+            if (!response.ok) {
+                hadErrors = true;
+                const errorData = await response.json().catch(() => ({}));
+                const detail = errorData.detail || `Upload failed with HTTP ${response.status}`;
+                throw new Error(detail);
+            }
+
             const reader = response.body?.getReader();
             const decoder = new TextDecoder();
 
-            if (!reader) return;
+            if (!reader) {
+                hadErrors = true;
+                throw new Error('Upload response did not include a progress stream');
+            }
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -96,13 +108,25 @@ export function DocumentsProvider({ children }: { children: ReactNode }) {
                             const data = JSON.parse(line.slice(6));
 
                             if (data.step === 'done') {
-                                setTimeout(() => setUploads({}), 4000);
+                                setTimeout(() => setUploads({}), hadErrors ? 15000 : 4000);
                                 refreshDocuments();
                                 continue;
                             }
 
                             const filename = data.file;
                             if (!filename) continue;
+                            const isError = data.step === 'error';
+                            if (isError) {
+                                hadErrors = true;
+                                const detail = data.detail || 'PDF processing failed';
+                                if (!shownErrorDetails.has(detail)) {
+                                    shownErrorDetails.add(detail);
+                                    toast.error(files.length > 1 ? 'PDF upload failed' : `Could not upload ${filename}`, {
+                                        description: detail,
+                                        duration: 12000,
+                                    });
+                                }
+                            }
 
                             setUploads(prev => ({
                                 ...prev,
@@ -126,16 +150,21 @@ export function DocumentsProvider({ children }: { children: ReactNode }) {
             }
         } catch (error) {
             console.error('Upload error:', error);
+            const detail = error instanceof Error ? error.message : 'Network error';
+            toast.error('Upload failed', {
+                description: detail,
+                duration: 12000,
+            });
             setUploads(prev => {
                 const updated = { ...prev };
                 Object.keys(updated).forEach(k => {
                     if (updated[k].status === 'processing') {
-                        updated[k] = { ...updated[k], status: 'error', detail: 'Network error', percent: 100 };
+                        updated[k] = { ...updated[k], status: 'error', detail, percent: 100 };
                     }
                 });
                 return updated;
             });
-            setTimeout(() => setUploads({}), 4000);
+            setTimeout(() => setUploads({}), 15000);
         }
     }, [refreshDocuments]);
 

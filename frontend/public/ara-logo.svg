@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="88" viewBox="0 0 360 88" fill="none">
+  <text x="2" y="63" fill="#0B3D91" font-family="Inter, Arial, sans-serif" font-size="68" font-weight="700">Ara</text>
+  <circle cx="304" cy="44" r="34" stroke="#0B3D91" stroke-width="6"/>
+  <path d="M290 62L304 28L318 62" stroke="#0B3D91" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="296" y1="49" x2="312" y2="49" stroke="#0B3D91" stroke-width="6" stroke-linecap="round"/>
+</svg>

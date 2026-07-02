@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react';
-import { Send, Paperclip, Loader2 } from 'lucide-react';
+import { ArrowUp, CircleNotch, Paperclip } from '@phosphor-icons/react';
 import { useDocuments } from '../contexts/DocumentsContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -61,10 +61,9 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Ask a quest
 
     return (
         <div className={cn(
-            "flex items-center gap-2 bg-card/60 backdrop-blur-xl rounded-xl border border-black/20 dark:border-white/10 p-2 shadow-glass transition-all duration-200 hover:shadow-glow focus-within:shadow-glow focus-within:border-primary/50",
+            "group/input flex w-full min-w-0 items-end gap-2 rounded-[20px] border border-border/80 bg-card/85 p-2 shadow-[0_22px_70px_-48px_rgba(15,23,42,0.55)] backdrop-blur-xl transition-[border-color,background,box-shadow,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] focus-within:border-primary/45 focus-within:bg-card focus-within:shadow-[0_26px_80px_-52px_hsl(var(--primary)/0.55)]",
             disabled && "opacity-50 pointer-events-none"
         )}>
-            {/* Attach button */}
             <input
                 ref={fileInputRef}
                 type="file"
@@ -78,17 +77,16 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Ask a quest
                 size="icon"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={disabled || isUploading}
-                className="shrink-0 h-10 w-10 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                className="h-11 w-11 shrink-0 rounded-[15px] text-muted-foreground transition-all duration-200 hover:bg-muted/70 hover:text-foreground active:scale-[0.96]"
                 title="Attach PDF"
             >
                 {isUploading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <CircleNotch size={20} weight="bold" className="animate-spin" />
                 ) : (
-                    <Paperclip className="h-5 w-5" />
+                    <Paperclip size={20} weight="duotone" />
                 )}
             </Button>
 
-            {/* Text input */}
             <Textarea
                 ref={textareaRef}
                 value={input}
@@ -97,22 +95,23 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Ask a quest
                 placeholder={placeholder}
                 disabled={disabled}
                 rows={1}
-                className="min-h-[40px] max-h-[200px] border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-2 py-[9px] resize-none bg-transparent shadow-none w-full text-base leading-relaxed placeholder:text-muted-foreground/70"
-                style={{ height: '40px' }} // Initial height
+                className="min-h-11 max-h-[200px] min-w-0 flex-1 resize-none border-0 bg-transparent px-2 py-[10px] text-base leading-relaxed shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0 focus-visible:ring-offset-0"
+                style={{ height: '44px' }}
             />
 
-            {/* Send button */}
             <Button
                 size="icon"
                 onClick={handleSend}
                 disabled={disabled || !input.trim()}
                 className={cn(
-                    "shrink-0 h-10 w-10 rounded-lg transition-all duration-200 shadow-sm",
-                    !input.trim() ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-glow"
+                    "h-11 w-11 shrink-0 rounded-[15px] transition-all duration-200 active:scale-[0.94]",
+                    !input.trim()
+                        ? "bg-muted text-muted-foreground"
+                        : "bg-primary text-primary-foreground shadow-[0_14px_36px_-24px_hsl(var(--primary)/0.8)] hover:bg-primary/90"
                 )}
                 aria-label="Send"
             >
-                <Send className="h-5 w-5" />
+                <ArrowUp size={20} weight="bold" />
             </Button>
         </div>
     );
