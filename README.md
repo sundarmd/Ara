@@ -232,7 +232,9 @@ The trace panel shows tool execution and synthesis progress for enterprise audit
 │   │   ├── Message.tsx            # Citation hover previews
 │   │   ├── ThoughtsPanel.tsx      # Agent reasoning display
 │   │   └── Sidebar.tsx            # Document library
-│   └── src/hooks/useChat.ts       # SSE stream handling
+│   ├── src/hooks/useChat.ts       # SSE stream handling
+│   ├── Dockerfile                 # Production static build served by Nginx
+│   └── Dockerfile.dev             # Local Vite dev server image
 └── docker-compose.yml                  # Local development/demo Compose file
 ```
 

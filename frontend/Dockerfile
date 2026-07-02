@@ -1,19 +1,23 @@
-# Frontend Dockerfile for React/Vite
-FROM node:20-alpine
+# Production frontend Dockerfile for React/Vite.
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files first for better caching
 COPY package*.json ./
+RUN npm ci --audit=false --fund=false
 
-# Install dependencies
-RUN npm install
-
-# Copy application code
 COPY . .
 
-# Expose port
-EXPOSE 3000
+ARG VITE_API_URL=http://localhost:8000
+ENV VITE_API_URL=${VITE_API_URL}
 
-# Run development server
-CMD ["npm", "run", "dev"]
+RUN npm run build
+
+FROM nginx:1.27-alpine
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/build /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
