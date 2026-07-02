@@ -18,7 +18,10 @@ python-dotenv==1.0.0
 python-multipart==0.0.9
 
 # Web Search
-tavily-python
+tavily-python==0.7.26
+
+# Token counting
+tiktoken==0.13.0
 
 # LangChain
 # LangChain (Pinned for speed & compatibility)
