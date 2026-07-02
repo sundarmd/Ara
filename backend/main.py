@@ -267,7 +267,7 @@ async def upload_files(
                 yield f"data: {json.dumps(_build_duplicate_upload_event(filename, duplicate_doc))}\n\n"
                 continue
             
-            # Check for duplicate
+            # Same hash is rejected above; same filename with new bytes replaces the prior version.
             existing_doc = doc_store.get_document_by_filename(filename)
             
             if existing_doc:
