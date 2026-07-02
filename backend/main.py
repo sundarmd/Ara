@@ -39,6 +39,33 @@ handler.setFormatter(JsonFormatter())
 logging.basicConfig(level=logging.INFO, handlers=[handler])
 
 UPLOAD_READ_CHUNK_SIZE = 1024 * 1024
+PDF_MAGIC_HEADER = b"%PDF-"
+PDF_CONTENT_TYPES = {"application/pdf", "application/x-pdf"}
+
+
+def _cleanup_spooled_file(stored_path: Optional[str]) -> None:
+    if stored_path and os.path.exists(stored_path):
+        os.remove(stored_path)
+
+
+def _validate_spooled_pdf(upload_data: dict) -> Optional[str]:
+    filename = upload_data["filename"] or ""
+
+    if not filename.lower().endswith(".pdf"):
+        return "Only PDF files supported"
+
+    content_type = (upload_data.get("content_type") or "").lower()
+    if content_type and content_type not in PDF_CONTENT_TYPES:
+        return "Only PDF uploads are supported"
+
+    try:
+        with open(upload_data["stored_path"], "rb") as pdf_file:
+            if pdf_file.read(len(PDF_MAGIC_HEADER)) != PDF_MAGIC_HEADER:
+                return "Invalid PDF: missing %PDF- header"
+    except OSError as exc:
+        return f"Invalid PDF: {exc}"
+
+    return None
 
 
 async def _spool_upload_file(upload_file: UploadFile, doc_id: str) -> dict:
@@ -68,13 +95,13 @@ async def _spool_upload_file(upload_file: UploadFile, doc_id: str) -> dict:
                 file_hash.update(chunk)
                 output.write(chunk)
     except Exception:
-        if os.path.exists(stored_path):
-            os.remove(stored_path)
+        _cleanup_spooled_file(stored_path)
         raise
 
     return {
         "doc_id": doc_id,
         "filename": filename,
+        "content_type": getattr(upload_file, "content_type", None),
         "stored_path": stored_path,
         "file_hash": file_hash.hexdigest(),
         "size_bytes": total_bytes,
@@ -164,9 +191,7 @@ async def upload_files(
             file_data.append(await _spool_upload_file(f, doc_id))
     except Exception:
         for item in file_data:
-            stored_path = item.get("stored_path")
-            if stored_path and os.path.exists(stored_path):
-                os.remove(stored_path)
+            _cleanup_spooled_file(item.get("stored_path"))
         raise
 
     async def generate():
@@ -179,11 +204,10 @@ async def upload_files(
             stored_path = item["stored_path"]
             file_hash = item["file_hash"]
             
-            # Validate file type
-            if not filename.lower().endswith(".pdf"):
-                if os.path.exists(stored_path):
-                    os.remove(stored_path)
-                yield f"data: {json.dumps({'file': filename, 'step': 'error', 'percent': 100, 'detail': 'Only PDF files supported'})}\n\n"
+            validation_error = _validate_spooled_pdf(item)
+            if validation_error:
+                _cleanup_spooled_file(stored_path)
+                yield f"data: {json.dumps({'file': filename, 'step': 'error', 'percent': 100, 'detail': validation_error})}\n\n"
                 continue
             
             # Check for duplicate
@@ -261,8 +285,7 @@ async def upload_files(
 
             except Exception as e:
                 logger.error(f"Error processing {filename}: {e}")
-                if os.path.exists(stored_path):
-                    os.remove(stored_path)
+                _cleanup_spooled_file(stored_path)
                 yield f"data: {json.dumps({'file': filename, 'step': 'error', 'percent': 100, 'detail': str(e)})}\n\n"
         
         # Signal end of stream
