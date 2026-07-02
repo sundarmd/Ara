@@ -3,6 +3,7 @@ pdf_files/*
 # Local
 .local
 .claude 
+issues.md
 
 # Environment files (contains secrets)
 .env
