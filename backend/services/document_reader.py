@@ -232,18 +232,48 @@ def _classify_block(
 
 def _is_markdown_table(block: str) -> bool:
     """Check if block is a markdown table."""
-    lines = block.strip().split("\n")
+    lines = [line.strip() for line in block.strip().split("\n") if line.strip()]
     if len(lines) < 2:
         return False
-    
-    # Check if lines contain | characters (table structure)
+
+    if _looks_like_pipe_table(lines):
+        return True
+    if _looks_like_whitespace_table(lines):
+        return True
+    return _looks_like_key_value_table(lines)
+
+
+def _pipe_cells(line: str) -> List[str]:
+    return [cell.strip() for cell in line.strip().strip("|").split("|") if cell.strip()]
+
+
+def _looks_like_pipe_table(lines: List[str]) -> bool:
     pipe_lines = [line for line in lines if "|" in line]
-    if len(pipe_lines) < 2:
+    if len(pipe_lines) < 2 or len(pipe_lines) != len(lines):
         return False
-    
-    # Check for separator row (|---|---|)
-    for line in lines:
+
+    for line in pipe_lines:
         if re.match(r'^\|?[\s\-:]+\|[\s\-:|]+\|?$', line):
             return True
-    
-    return False
+
+    return all(len(_pipe_cells(line)) >= 2 for line in pipe_lines)
+
+
+def _looks_like_whitespace_table(lines: List[str]) -> bool:
+    if len(lines) < 3:
+        return False
+
+    rows = [re.split(r"\s{2,}|\t+", line.strip()) for line in lines]
+    column_counts = [len([cell for cell in row if cell.strip()]) for row in rows]
+    if min(column_counts) < 2:
+        return False
+
+    return max(column_counts) - min(column_counts) <= 1
+
+
+def _looks_like_key_value_table(lines: List[str]) -> bool:
+    if len(lines) < 3:
+        return False
+
+    key_value_pattern = re.compile(r"^[A-Za-z][A-Za-z0-9 /%()._-]{0,40}\s*[:=]\s*\S+")
+    return all(key_value_pattern.match(line) for line in lines)

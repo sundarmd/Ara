@@ -54,3 +54,36 @@ class DocumentReaderMarkdownTests(unittest.TestCase):
         self.assertEqual(segments[2].section, "Rates Strategy")
         self.assertEqual(segments[3].text, "Curve chart")
         self.assertEqual(segments[3].image_path, "/tmp/chart.png")
+
+    def test_table_detection_handles_common_ocr_shapes(self):
+        cases = [
+            (
+                "pipe-table with separator",
+                "| Test | Value |\n|---|---|\n| Temperature | 42 C |",
+                True,
+            ),
+            (
+                "pipe-table without separator",
+                "| Test | Value |\n| Temperature | 42 C |\n| Pressure | 2 bar |",
+                True,
+            ),
+            (
+                "whitespace-aligned table",
+                "Test          Value      Status\nTemperature   42 C       PASS\nPressure      2 bar      PASS",
+                True,
+            ),
+            (
+                "key-value lab table",
+                "Test: Temperature\nValue: 42 C\nStatus: PASS\nMethod: IEC 60068",
+                True,
+            ),
+            (
+                "malformed table",
+                "This paragraph mentions A | B once.\nIt is still prose, not a table.",
+                False,
+            ),
+        ]
+
+        for name, block, expected in cases:
+            with self.subTest(name=name):
+                self.assertEqual(document_reader._is_markdown_table(block), expected)
