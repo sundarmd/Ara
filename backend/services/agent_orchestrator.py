@@ -9,11 +9,9 @@ This module handles:
 import logging
 import json
 import re
-from typing import Optional, List, Dict, Any, AsyncGenerator
+from typing import Optional, Dict, Any, AsyncGenerator
 
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, AIMessage
-from langchain_core.tools import Tool
 
 from config.settings import settings
 from services.tools import AVAILABLE_TOOLS, reset_search_filter_scope, set_search_filter_scope
@@ -55,22 +53,12 @@ class AgentOrchestrator:
                 "\n# References"
             ]
         )
-        
-        # Bind tools to the model
-        self.llm_with_tools = self.llm.bind_tools(AVAILABLE_TOOLS)
-        
-        # Map tool names to functions for execution
-        self.tool_map = {t.name: t for t in AVAILABLE_TOOLS}
     
     async def process_query(self, request: ChatRequest) -> AsyncGenerator[str, None]:
         """
         Process a user query using LangChain's AgentExecutor.
         Yields SSE events: thought, token, complete, error.
         """
-        # 1. PLAN: Analyze query
-        # 1. PLAN: Analyze query
-        # Initial thought removed per user request for cleaner UI
-
         search_filter_token = None
         
         try:
