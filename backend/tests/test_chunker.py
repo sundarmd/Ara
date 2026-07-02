@@ -141,3 +141,26 @@ class ChunkerTests(unittest.TestCase):
         self.assertTrue(all(chunk.section == "Measurement Results" for chunk in chunks))
         self.assertTrue(all(_get_token_length(chunk.text) <= MAX_TOKENS_PER_CHUNK for chunk in chunks))
         self.assertLess(_get_token_length(chunks[0].text), _get_token_length(table_text))
+
+    def test_oversized_non_table_segment_is_preserved_whole(self):
+        oversized_text = " ".join(["long macro narrative"] * 900)
+
+        chunks = build_chunks(
+            doc_id="doc-1",
+            bank="GS",
+            asset_class="macro",
+            report_date="2026-01-01",
+            segments=[
+                Segment(
+                    doc_id="doc-1",
+                    page=3,
+                    segment_type="body",
+                    section="Macro Outlook",
+                    text=oversized_text,
+                )
+            ],
+        )
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].text, oversized_text)
+        self.assertGreater(_get_token_length(chunks[0].text), MAX_TOKENS_PER_CHUNK)

@@ -9,14 +9,14 @@ This module handles:
 import logging
 import json
 import re
-from typing import Optional, Dict, Any, AsyncGenerator
+from typing import Optional, Dict, Any, AsyncGenerator, List, Tuple
 
 from langchain_openai import ChatOpenAI
 
 from config.settings import settings
 from services.errors import format_chat_error
 from services.tools import AVAILABLE_TOOLS, reset_search_filter_scope, set_search_filter_scope
-from models.schemas import ChatRequest, StreamEventType
+from models.schemas import ChatMessage, ChatRequest, StreamEventType
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,17 @@ TOOL_DISPLAY_NAMES = {
     "search_knowledge_base": "Research Report Knowledge Base",
     "web_search": "Live Web Search",
 }
+
+
+def _build_chat_history(messages: List[ChatMessage]) -> List[Tuple[str, str]]:
+    """Convert prior chat turns into LangChain's prompt placeholder tuple format."""
+    history = []
+    for message in messages[:-1]:
+        if message.role == "user":
+            history.append(("human", message.content))
+        elif message.role == "assistant":
+            history.append(("ai", message.content))
+    return history
 
 
 class AgentOrchestrator:
@@ -83,14 +94,7 @@ class AgentOrchestrator:
             agent_executor = AgentExecutor(agent=agent, tools=AVAILABLE_TOOLS, verbose=True)
 
             # Execute with streaming
-            # Hack: We need a simpler history management for now
-            history = []
-            for m in request.messages[:-1]: # All except last
-                if m.role == "user":
-                    history.append(("human", m.content))
-                elif m.role == "assistant":
-                    history.append(("ai", m.content))
-
+            history = _build_chat_history(request.messages)
             input_text = request.messages[-1].content
             
             # Streaming state

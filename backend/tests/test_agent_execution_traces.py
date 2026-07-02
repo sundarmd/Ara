@@ -5,11 +5,31 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from models.schemas import ChatRequest
-from services.agent_orchestrator import AgentOrchestrator
+from services.agent_orchestrator import AgentOrchestrator, _build_chat_history
 
 
 def parse_sse(event_line):
     return json.loads(event_line.removeprefix("data: "))
+
+
+class AgentChatHistoryTests(unittest.TestCase):
+    def test_build_chat_history_uses_prior_user_and_assistant_turns(self):
+        request = ChatRequest(
+            messages=[
+                {"role": "system", "content": "System instruction"},
+                {"role": "user", "content": "First question"},
+                {"role": "assistant", "content": "First answer"},
+                {"role": "user", "content": "Follow-up question"},
+            ],
+        )
+
+        self.assertEqual(
+            _build_chat_history(request.messages),
+            [
+                ("human", "First question"),
+                ("ai", "First answer"),
+            ],
+        )
 
 
 class AgentExecutionTraceTests(unittest.IsolatedAsyncioTestCase):

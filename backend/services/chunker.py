@@ -256,8 +256,7 @@ def build_chunks(
             )
             continue
 
-        # Start new chunk if adding this segment would exceed MAX_TOKENS_PER_CHUNK.
-        # Oversized tables are split above; oversized non-table segments are still kept whole.
+        # Start a new chunk before adding a segment that would exceed the chunk target.
         # We only flush if we have existing content.
         if (current_token_count + seg_tokens > MAX_TOKENS_PER_CHUNK) and len(current_text_parts) >= 1:
             flush_chunk()
