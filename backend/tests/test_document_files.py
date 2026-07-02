@@ -62,6 +62,35 @@ class DocumentFileEndpointTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(raised.exception.detail, "File not found")
 
 
+class DocumentDeleteEndpointTests(unittest.IsolatedAsyncioTestCase):
+    async def test_delete_document_surfaces_vector_delete_failure(self):
+        doc_store = Mock()
+        doc_store.get_document.return_value = SimpleNamespace(
+            doc_id="doc-1",
+            filename="report.pdf",
+        )
+        vector_store = Mock()
+        vector_store.delete_document.side_effect = RuntimeError("verification failed")
+        recommendation_store = Mock()
+
+        with (
+            patch.object(main, "get_document_store", return_value=doc_store),
+            patch.object(main, "get_vector_store", return_value=vector_store),
+            patch(
+                "services.recommendations.get_recommendation_store",
+                return_value=recommendation_store,
+            ),
+            patch.object(main.os.path, "exists", return_value=False),
+        ):
+            with self.assertRaises(HTTPException) as raised:
+                await main.delete_document("doc-1")
+
+        self.assertEqual(raised.exception.status_code, 500)
+        self.assertIn("Failed to delete vectors", raised.exception.detail)
+        doc_store.delete_document.assert_not_called()
+        recommendation_store.delete_by_doc_id.assert_not_called()
+
+
 class DocumentFileLinkTests(unittest.IsolatedAsyncioTestCase):
     async def test_knowledge_base_sources_link_to_document_file_endpoint(self):
         search_results = [
@@ -82,4 +111,3 @@ class DocumentFileLinkTests(unittest.IsolatedAsyncioTestCase):
             source["metadata"]["url"].endswith("/documents/doc-1/file#page=7"),
             source["metadata"]["url"],
         )
-

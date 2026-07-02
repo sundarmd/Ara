@@ -327,6 +327,7 @@ async def delete_document(doc_id: str):
         "pdf_deleted": False,
         "metadata_deleted": False,
         "vectors_deleted": False,
+        "vectors_deleted_count": 0,
         "recommendations_deleted": 0,
         "images_deleted": 0
     }
@@ -339,10 +340,15 @@ async def delete_document(doc_id: str):
 
     # 2. Delete vector embeddings
     try:
-        vector_store.delete_document(doc_id)
+        vector_count = vector_store.delete_document(doc_id)
         deleted_items["vectors_deleted"] = True
+        deleted_items["vectors_deleted_count"] = vector_count
     except Exception as e:
-        logger.warning(f"Failed to delete vectors for {doc_id}: {e}")
+        logger.error(f"Failed to delete vectors for {doc_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete vectors for {doc_id}: {e}",
+        ) from e
 
     # 3. Delete recommendations
     try:

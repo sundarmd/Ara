@@ -124,22 +124,28 @@ class ResearchVectorStore:
             "persist_directory": settings.VECTOR_DB_DIR,
         }
         
-    def delete_document(self, doc_id: str):
+    def delete_document(self, doc_id: str) -> int:
         """
         Delete all chunks associated with a doc_id.
         """
-        try:
-            # Delete by metadata filter
-            # LangChain Chroma delete uses `ids` or `where`
-            # Note: The underlying method might differ by version, but `delete` with `where` is standard.
-            self.vectorstore.delete(where={"doc_id": doc_id})
-        except Exception as e:
-            # Depending on version, it might raise if no documents found or other issues.
-            # We log but don't crash.
-            # If standard delete(where=) doesn't work, we might need to query IDs first.
-            # But recent LangChain Chroma supports it.
-            logger.warning(f"Failed to delete chunks for doc_id={doc_id} from vector store: {e}", exc_info=True)
-            # Continue - deletion failure shouldn't block the operation
+        where_filter = {"doc_id": doc_id}
+        matching = self.vectorstore.get(where=where_filter)
+        ids = list(matching.get("ids") or [])
+        if not ids:
+            return 0
+
+        self.vectorstore.delete(ids=ids)
+
+        remaining = self.vectorstore.get(where=where_filter)
+        remaining_ids = list(remaining.get("ids") or [])
+        if remaining_ids:
+            raise RuntimeError(
+                f"Vector deletion verification failed for doc_id={doc_id}; "
+                f"{len(remaining_ids)} chunks remain"
+            )
+
+        logger.info("Deleted %s vector chunks for doc_id=%s", len(ids), doc_id)
+        return len(ids)
 
 # Singleton instance
 _vector_store: Optional[ResearchVectorStore] = None

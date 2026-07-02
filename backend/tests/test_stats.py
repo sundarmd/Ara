@@ -133,3 +133,60 @@ class ResearchVectorStoreSearchTests(unittest.IsolatedAsyncioTestCase):
                 }
             ],
         )
+
+
+class ResearchVectorStoreDeleteTests(unittest.TestCase):
+    def test_delete_document_deletes_queried_ids_and_returns_count(self):
+        class FakeVectorStore:
+            def __init__(self):
+                self.get_calls = 0
+                self.where_calls = []
+                self.deleted_ids = None
+
+            def get(self, where):
+                self.get_calls += 1
+                self.where_calls.append(where)
+                return {"ids": ["chunk-1", "chunk-2"] if self.get_calls == 1 else []}
+
+            def delete(self, ids):
+                self.deleted_ids = ids
+
+        fake_vector_store = FakeVectorStore()
+        store = object.__new__(ResearchVectorStore)
+        store.vectorstore = fake_vector_store
+
+        deleted_count = store.delete_document("doc-1")
+
+        self.assertEqual(deleted_count, 2)
+        self.assertEqual(
+            fake_vector_store.where_calls,
+            [{"doc_id": "doc-1"}, {"doc_id": "doc-1"}],
+        )
+        self.assertEqual(fake_vector_store.deleted_ids, ["chunk-1", "chunk-2"])
+
+    def test_delete_document_raises_when_verification_finds_remaining_ids(self):
+        class FakeVectorStore:
+            def __init__(self):
+                self.get_calls = 0
+                self.where_calls = []
+
+            def get(self, where):
+                self.get_calls += 1
+                self.where_calls.append(where)
+                return {"ids": ["chunk-1"]}
+
+            def delete(self, ids):
+                self.deleted_ids = ids
+
+        fake_vector_store = FakeVectorStore()
+        store = object.__new__(ResearchVectorStore)
+        store.vectorstore = fake_vector_store
+
+        with self.assertRaises(RuntimeError) as raised:
+            store.delete_document("doc-1")
+
+        self.assertIn("Vector deletion verification failed", str(raised.exception))
+        self.assertEqual(
+            fake_vector_store.where_calls,
+            [{"doc_id": "doc-1"}, {"doc_id": "doc-1"}],
+        )
