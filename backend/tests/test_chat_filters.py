@@ -12,7 +12,10 @@ class ChatFilterToolTests(unittest.IsolatedAsyncioTestCase):
     async def test_search_knowledge_base_passes_explicit_filters_to_search_documents(self):
         search_documents = AsyncMock(return_value=[])
 
-        with patch.object(tools, "search_documents", search_documents):
+        with (
+            patch.object(tools.settings, "RAG_SEARCH_RESULTS", 7),
+            patch.object(tools, "search_documents", search_documents),
+        ):
             output = await tools.search_knowledge_base.ainvoke(
                 {
                     "query": "duration views",
@@ -24,7 +27,7 @@ class ChatFilterToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(output, "No relevant information found in knowledge base.")
         search_documents.assert_awaited_once_with(
             query="duration views",
-            n_results=4,
+            n_results=7,
             filter_bank="GS",
             filter_asset_class="fixed_income",
         )
@@ -34,7 +37,10 @@ class ChatFilterToolTests(unittest.IsolatedAsyncioTestCase):
         token = tools.set_search_filter_scope(bank="UBS", asset_class="multi_asset")
 
         try:
-            with patch.object(tools, "search_documents", search_documents):
+            with (
+                patch.object(tools.settings, "RAG_SEARCH_RESULTS", 6),
+                patch.object(tools, "search_documents", search_documents),
+            ):
                 await tools.search_knowledge_base.ainvoke(
                     {
                         "query": "duration views",
@@ -47,7 +53,7 @@ class ChatFilterToolTests(unittest.IsolatedAsyncioTestCase):
 
         search_documents.assert_awaited_once_with(
             query="duration views",
-            n_results=4,
+            n_results=6,
             filter_bank="UBS",
             filter_asset_class="multi_asset",
         )
@@ -80,6 +86,7 @@ class ChatFilterToolTests(unittest.IsolatedAsyncioTestCase):
         loop.slow_callback_duration = 1.0
 
         with (
+            patch.object(tools.settings, "RAG_SEARCH_RESULTS", 5),
             patch.object(tools, "search_documents", search_documents),
             patch("langchain.agents.create_tool_calling_agent", return_value=Mock()),
             patch("langchain.agents.AgentExecutor", FakeAgentExecutor),
@@ -90,7 +97,7 @@ class ChatFilterToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(json.loads(events[0].removeprefix("data: "))["answer"], "done")
         search_documents.assert_awaited_once_with(
             query="duration views",
-            n_results=4,
+            n_results=5,
             filter_bank="GS",
             filter_asset_class="fixed_income",
         )

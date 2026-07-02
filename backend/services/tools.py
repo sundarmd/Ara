@@ -70,7 +70,7 @@ async def search_knowledge_base(
 
         results = await search_documents(
             query=query,
-            n_results=4,
+            n_results=settings.RAG_SEARCH_RESULTS,
             filter_bank=filter_bank,
             filter_asset_class=filter_asset_class,
         )
