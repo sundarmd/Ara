@@ -1,3 +1,6 @@
+# Local development/demo Compose file.
+# Services bind-mount source directories so container behavior follows the working tree.
+# Do not treat this file as a production-like immutable image deployment.
 services:
   backend:
     build:
