@@ -3,6 +3,7 @@ Tool definitions for the Agent Orchestrator.
 Exposes specific capabilities as callable functions with schemas.
 """
 import logging
+from contextvars import ContextVar, Token
 from typing import List, Optional, Dict, Any, Annotated
 from pydantic import BaseModel, Field
 from langchain_core.tools import tool
@@ -21,20 +22,57 @@ KB_CITATION_START = 1
 INTERNAL_VIEW_CITATION_START = 100
 ANALYST_CITATION_START = 200
 WEB_CITATION_START = 300
+_SEARCH_FILTER_SCOPE: ContextVar[Dict[str, Optional[str]]] = ContextVar(
+    "search_filter_scope",
+    default={"bank": None, "asset_class": None},
+)
 
 
 def citation_id(range_start: int, index: int) -> int:
     """Return a stable citation ID within a tool-specific range."""
     return range_start + index
 
-@tool
-async def search_knowledge_base(query: str) -> str:
+
+def set_search_filter_scope(bank: Optional[str], asset_class: Optional[str]) -> Token:
+    """Set request-level filters that must apply to knowledge-base searches."""
+    return _SEARCH_FILTER_SCOPE.set({"bank": bank, "asset_class": asset_class})
+
+
+def reset_search_filter_scope(token: Token) -> None:
+    """Reset request-level knowledge-base search filters."""
+    _SEARCH_FILTER_SCOPE.reset(token)
+
+
+def effective_search_filter(tool_value: Optional[str], scope_key: str) -> Optional[str]:
+    scoped_value = _SEARCH_FILTER_SCOPE.get().get(scope_key)
+    return scoped_value if scoped_value is not None else tool_value
+
+
+class SearchKnowledgeBaseInput(BaseModel):
+    query: str = Field(..., description="Natural-language search query for uploaded reports.")
+    bank: Optional[str] = Field(None, description="Optional bank/source filter, e.g. GS, JPM, UBS.")
+    asset_class: Optional[str] = Field(None, description="Optional asset-class filter, e.g. equity or multi_asset.")
+
+@tool(args_schema=SearchKnowledgeBaseInput)
+async def search_knowledge_base(
+    query: str,
+    bank: Optional[str] = None,
+    asset_class: Optional[str] = None,
+) -> str:
     """
     Search within the uploaded PDF research reports WITHOUT internal views.
     Use this for questions about external analysis (e.g., 'What does Goldman say about AI?').
     """
     try:
-        results = await search_documents(query=query, n_results=4)
+        filter_bank = effective_search_filter(bank, "bank")
+        filter_asset_class = effective_search_filter(asset_class, "asset_class")
+
+        results = await search_documents(
+            query=query,
+            n_results=4,
+            filter_bank=filter_bank,
+            filter_asset_class=filter_asset_class,
+        )
         if not results:
             return "No relevant information found in knowledge base."
         

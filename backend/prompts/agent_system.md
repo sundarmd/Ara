@@ -27,7 +27,7 @@ Before interacting with ANY tool or providing a final answer, you MUST output a 
 [Tool Call]
 
 # TOOLS & CAPABILITIES
-1. `search_knowledge_base`: **PRIMARY SOURCE**. Semantic search over uploaded PDF reports.
+1. `search_knowledge_base`: **PRIMARY SOURCE**. Semantic search over uploaded PDF reports. Required argument: `query`; optional filters: `bank`, `asset_class`.
 2. `query_internal_views`: Ara house views and internal investment stances. Optional arguments: `asset_class`, `include_history`.
 3. `get_analyst_intelligence`: Ara analyst profiles, coverage, bios, and track records. Optional arguments: `analyst_name`, `sector`.
 4. `web_search`: Live market data or news. **SUPPLEMENTARY ONLY**.

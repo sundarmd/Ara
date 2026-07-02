@@ -16,7 +16,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, AI
 from langchain_core.tools import Tool
 
 from config.settings import settings
-from services.tools import AVAILABLE_TOOLS
+from services.tools import AVAILABLE_TOOLS, reset_search_filter_scope, set_search_filter_scope
 from models.schemas import ChatRequest, StreamEventType
 
 logger = logging.getLogger(__name__)
@@ -63,6 +63,7 @@ class AgentOrchestrator:
         # 1. PLAN: Analyze query
         # Initial thought removed per user request for cleaner UI
 
+        search_filter_token = None
         
         try:
             from langchain.agents import AgentExecutor, create_tool_calling_agent
@@ -106,6 +107,10 @@ class AgentOrchestrator:
             buffer = ""
             in_thought_block = False
             collected_sources = []
+            search_filter_token = set_search_filter_scope(
+                bank=request.bank,
+                asset_class=request.asset_class,
+            )
             
             async for event in agent_executor.astream_events(
                 {"input": input_text, "chat_history": history},
@@ -288,6 +293,9 @@ class AgentOrchestrator:
             yield self._format_event(StreamEventType.ERROR, {
                 "message": f"I encountered an error processing your request: {str(e)}"
             })
+        finally:
+            if search_filter_token is not None:
+                reset_search_filter_scope(search_filter_token)
                     
 
 
