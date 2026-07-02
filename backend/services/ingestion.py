@@ -9,10 +9,13 @@ This module owns all indexing logic:
 - Recommendation extraction (Mistral Chat)
 """
 import logging
+import os
+import shutil
 from typing import Optional, List, Callable, Awaitable
 import httpx
 
 from models.schemas import Chunk, Recommendation
+from config.settings import settings
 from services.document_reader import parse_pdf_to_segments
 from services.chunker import build_chunks
 from services.database import ResearchVectorStore, get_vector_store
@@ -26,6 +29,72 @@ logger = logging.getLogger(__name__)
 
 # Progress callback type
 ProgressCallback = Callable[[str, int, str], Awaitable[None]]
+
+
+def _cleanup_failed_ingestion(
+    doc_id: str,
+    file_path: str,
+    vector_store: Optional[ResearchVectorStore] = None,
+) -> dict:
+    """Best-effort cleanup for artifacts created before ingestion failed."""
+    cleanup = {
+        "vectors_deleted": False,
+        "recommendations_deleted": 0,
+        "images_deleted": False,
+        "pdf_deleted": False,
+    }
+
+    if vector_store is not None:
+        try:
+            vector_store.delete_document(doc_id)
+            cleanup["vectors_deleted"] = True
+        except Exception as cleanup_error:
+            logger.warning(
+                "Failed to cleanup vectors for doc_id=%s: %s",
+                doc_id,
+                cleanup_error,
+                exc_info=True,
+            )
+
+    try:
+        cleanup["recommendations_deleted"] = (
+            get_recommendation_store().delete_by_doc_id(doc_id)
+        )
+    except Exception as cleanup_error:
+        logger.warning(
+            "Failed to cleanup recommendations for doc_id=%s: %s",
+            doc_id,
+            cleanup_error,
+            exc_info=True,
+        )
+
+    images_dir = os.path.join(settings.IMAGES_DIR, doc_id)
+    if os.path.exists(images_dir):
+        try:
+            shutil.rmtree(images_dir)
+            cleanup["images_deleted"] = True
+        except Exception as cleanup_error:
+            logger.warning(
+                "Failed to cleanup images for doc_id=%s: %s",
+                doc_id,
+                cleanup_error,
+                exc_info=True,
+            )
+
+    if file_path and os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+            cleanup["pdf_deleted"] = True
+        except Exception as cleanup_error:
+            logger.warning(
+                "Failed to cleanup PDF for doc_id=%s: %s",
+                doc_id,
+                cleanup_error,
+                exc_info=True,
+            )
+
+    return cleanup
+
 
 async def ingest_pdf(
     doc_id: str,
@@ -69,6 +138,8 @@ async def ingest_pdf(
         "recommendations": 0,
         "status": "processing"
     }
+
+    vector_store: Optional[ResearchVectorStore] = None
     
     try:
         logger.info(f"Starting ingestion for document {doc_id}")
@@ -165,6 +236,7 @@ async def ingest_pdf(
         logger.error(f"Ingestion error for {doc_id}: {e}")
         result["status"] = "error"
         result["error"] = error_message
+        result["cleanup"] = _cleanup_failed_ingestion(doc_id, file_path, vector_store)
         await emit("error", 100, error_message)
         return result
 
