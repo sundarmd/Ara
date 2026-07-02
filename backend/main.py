@@ -251,6 +251,8 @@ async def upload_files(
                 queue = asyncio.Queue()
                 
                 async def on_progress(step, percent, detail):
+                    if step == "complete":
+                        return
                     await queue.put({
                         "file": filename,
                         "step": step,
@@ -289,17 +291,38 @@ async def upload_files(
                 result = await task
                 
                 if result.get("status") == "success":
+                    document_bank = result.get("bank") or "UNKNOWN"
+                    document_asset_class = result.get("asset_class") or "unknown"
+                    document_report_date = result.get("report_date") or "UNKNOWN"
+                    document_title = result.get("title") or filename
+                    chunk_count = result.get("chunks", 0)
+                    recommendation_count = result.get("recommendations", 0)
+
                     # Record in document store
                     doc_store.add_document(
                         doc_id=doc_id,
                         file_hash=file_hash,
                         filename=filename,
-                        bank=result.get("bank") or "UNKNOWN",
-                        asset_class=result.get("asset_class") or "unknown",
-                        report_date=result.get("report_date") or "UNKNOWN",
-                        title=result.get("title", filename),
-                        chunk_count=result.get("chunks", 0),
+                        bank=document_bank,
+                        asset_class=document_asset_class,
+                        report_date=document_report_date,
+                        title=document_title,
+                        chunk_count=chunk_count,
                     )
+
+                    complete_event = {
+                        "file": filename,
+                        "step": "complete",
+                        "percent": 100,
+                        "detail": "Processing complete",
+                        "doc_id": doc_id,
+                        "bank": document_bank,
+                        "asset_class": document_asset_class,
+                        "report_date": document_report_date,
+                        "chunk_count": chunk_count,
+                        "recommendation_count": recommendation_count,
+                    }
+                    yield f"data: {json.dumps(complete_event)}\n\n"
                 elif result.get("status") == "error":
                      yield f"data: {json.dumps({'file': filename, 'step': 'error', 'percent': 100, 'detail': result.get('error', 'Unknown Error')})}\n\n"
 
