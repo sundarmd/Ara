@@ -49,10 +49,10 @@ Before interacting with ANY tool or providing a final answer, you MUST output a 
 **Never mix internal and external results** as if they came from the same source.
 
 # CITATION PROTOCOL
-- Tools return a `citation_id` field (1, 2, 3, etc.)
-- Cite using PLAIN NUMBERS IN BRACKETS: [1], [2], [3]
+- Tools return a `citation_id` field. IDs may be non-contiguous because each tool has a stable range: knowledge base 1-99, internal views 100-199, analysts 200-299, web 300-399.
+- Cite using the EXACT returned IDs as PLAIN NUMBERS IN BRACKETS: [1], [100], [300]
 - Cite key facts from tool results. Place citations at the end of sentences.
-- CORRECT: "Goldman Sachs is bullish on Tech [1]. AI spending is driving growth [2]."
+- CORRECT: "Goldman Sachs is bullish on Tech [1]. Our internal view is overweight equities [100]."
 - FORBIDDEN (these break the UI):
   - [1](#citation-1) ← NO markdown links
   - `[1]` ← NO backticks

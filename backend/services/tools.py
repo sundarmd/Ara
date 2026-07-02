@@ -17,6 +17,16 @@ logger = logging.getLogger(__name__)
 
 # --- Tool Implementations ---
 
+KB_CITATION_START = 1
+INTERNAL_VIEW_CITATION_START = 100
+ANALYST_CITATION_START = 200
+WEB_CITATION_START = 300
+
+
+def citation_id(range_start: int, index: int) -> int:
+    """Return a stable citation ID within a tool-specific range."""
+    return range_start + index
+
 @tool
 async def search_knowledge_base(query: str) -> str:
     """
@@ -36,7 +46,7 @@ async def search_knowledge_base(query: str) -> str:
             deep_link = f"{settings.API_BASE_URL}/files/{doc_id}.pdf#page={page}" if doc_id else None
 
             source_entry = {
-                "citation_id": i + 1,
+                "citation_id": citation_id(KB_CITATION_START, i),
                 "text": r.get('text', '').strip(),
                 "metadata": {
                     "bank": meta.get('bank', 'Unknown'),
@@ -91,7 +101,7 @@ async def query_internal_views(
             text = f"{status_str}: Ara is {r.stance} on {r.asset_class} ({r.sub_asset}). Rationale: {r.rationale} [{r.horizon}]"
 
             source_entry = {
-                "citation_id": i + 1,
+                "citation_id": citation_id(INTERNAL_VIEW_CITATION_START, i),
                 "text": text,
                 "metadata": {
                     "bank": "Ara Internal",
@@ -133,7 +143,7 @@ async def get_analyst_intelligence(
             text = f"ANALYST PROFILE: {a.name} ({a.team}).\nBio: {a.bio}\nCoverage: {a.coverage_sector}\nAccuracy Score: {a.accuracy_score}"
             
             source_entry = {
-                "citation_id": i + 1,
+                "citation_id": citation_id(ANALYST_CITATION_START, i),
                 "text": text,
                 "metadata": {
                     "bank": "Ara HR",
@@ -180,7 +190,7 @@ async def web_search(query: str) -> str:
             deep_link = f"{original_url}#:~:text={safe_snippet}" if original_url else None
 
             source_entry = {
-                "citation_id": i + 1,
+                "citation_id": citation_id(WEB_CITATION_START, i),
                 "text": f"WEB RESULT: {res.get('title')}\n{content}",
                 "metadata": {
                     "bank": "Web",

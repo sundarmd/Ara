@@ -70,7 +70,7 @@ function DistinctSourceList({ sources }: { sources: Source[] }) {
                         >
                             <div className="mt-0.5 flex-shrink-0">
                                 <span className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold text-primary-foreground bg-primary rounded-full shadow-sm group-hover:scale-110 transition-transform">
-                                    {idx + 1}
+                                    {source.citation_id ?? idx + 1}
                                 </span>
                             </div>
                             <div className="min-w-0 flex-1">
