@@ -48,8 +48,8 @@ identity or RBAC.
 
 | Capability | What You Get | Business Impact |
 |------------|--------------|-----------------|
-| **Inline Citations with PDF Deep Links** | Every claim traced to source: `[1]` opens `report.pdf#page=7` | Designed for traceable answers in a local reference implementation. Analysts verify AI responses against original documents in one click. |
-| **Document Structure Preservation** | Tables, figures, and headings kept intact during processing | Zero data loss. Financial tables render correctly. No broken charts or split rows. |
+| **Inline Citations with PDF Deep Links** | Every claim traced to source: `[1]` opens `/documents/{doc_id}/file#page=7` | Designed for traceable answers in a local reference implementation. Analysts verify AI responses against original documents in one click. |
+| **Document Structure Preservation** | Tables, figures, and headings preserved with page and section metadata | Financial tables remain traceable, with oversized tables split into row-bounded chunks that reference the full table artifact. |
 | **Structured Recommendation Extraction** | Raw reports parsed into queryable `{asset, stance, confidence, bank, date}` | Enables "Show all Overweight calls on Tech" - queries impossible with standard RAG. |
 | **Tool-Calling Orchestration** | One LangChain orchestrator selects specialist tools based on query context | Flexible answers across PDFs, structured recommendations, analyst profiles, and web search. |
 | **Real-Time Execution Transparency** | Tool-selection and response-generation traces streamed live via SSE | Designed for traceable answers in a local reference implementation. See which tools were used and why. |
@@ -94,15 +94,15 @@ The ingestion pipeline preserves document semantics:
 
 | Segment Type | Processing | Result |
 |--------------|------------|--------|
-| **Tables** | Kept intact, never split | Financial data renders correctly |
+| **Tables** | Small tables stay together; oversized tables are split into row-bounded excerpts with a full table artifact | Financial data remains traceable without oversized vector chunks |
 | **Figures** | Extracted with captions | Charts preserved with context |
 | **Headings** | Maintained as context anchors | Section hierarchy retained |
 | **Body Text** | Chunked with heading context | Semantic coherence preserved |
 
 **Chunking Strategy:**
-- Groups sequential segments up to 512 tokens
+- Groups sequential non-table segments up to 800 tokens
 - Tracks page ranges per chunk for citation accuracy
-- Preserves table integrity across page breaks
+- Preserves table provenance with row ranges and full table artifact links
 
 ### Recommendation Extraction
 
@@ -140,7 +140,7 @@ Every specialist tool returns citations with full provenance:
     "bank": "Goldman Sachs",
     "title": "Global Strategy Weekly",
     "report_date": "2024-08-15",
-    "url": "http://localhost:8000/files/abc123.pdf#page=7"
+    "url": "http://localhost:8000/documents/abc123/file#page=7"
   }
 }
 ```
@@ -176,6 +176,7 @@ The trace panel shows tool execution and synthesis progress for local traceabili
 ├── reports/
 │   └── {doc_id}.pdf                # Original PDF files
 ├── images/{doc_id}/                # Extracted figures
+├── tables/{doc_id}/                # Full markdown table artifacts
 └── vector_store/                   # ChromaDB persistence
 ```
 
@@ -226,7 +227,7 @@ The trace panel shows tool execution and synthesis progress for local traceabili
 
 | Principle | Implementation |
 |-----------|----------------|
-| **Document Structure Preservation** | Tables and figures kept intact. Financial reports have structure that matters. |
+| **Document Structure Preservation** | Figures, headings, and table provenance are preserved. Oversized tables are chunked by row with full artifacts retained. |
 | **Verifiable AI Responses** | Page-level citations let analysts verify every claim against source documents. |
 | **Hybrid Retrieval** | Vector search for semantics, SQL for structured filters. Both needed for financial queries. |
 | **LangChain Tool Calling** | Tool-calling agent with structured specialist tools and inspectable execution traces. |
