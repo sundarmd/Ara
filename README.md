@@ -56,7 +56,7 @@ identity or RBAC.
 
 ---
 
-This is not an enterprise audit system. A production enterprise deployment would need authentication and RBAC, durable audit logs, stable citation/trace IDs, eval gates in CI, monitoring, rate limiting, and a security review.
+This is not an enterprise audit system. A production enterprise deployment would need authentication and RBAC, durable audit logs, stable citation/trace IDs, eval gates in CI, monitoring, rate limiting, and a security review. See [Production Hardening](docs/production_hardening.md) for the current boundary.
 
 ---
 
