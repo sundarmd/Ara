@@ -5,7 +5,11 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 from models.schemas import ChatRequest, Recommendation
-from services.agent_orchestrator import AgentOrchestrator, _build_chat_history
+from services.agent_orchestrator import (
+    AgentOrchestrator,
+    _build_chat_history,
+    _wants_structured_recommendations,
+)
 
 
 def parse_sse(event_line):
@@ -29,6 +33,25 @@ class AgentChatHistoryTests(unittest.TestCase):
                 ("human", "First question"),
                 ("ai", "First answer"),
             ],
+        )
+
+
+class RecommendationIntentTests(unittest.TestCase):
+    def test_detects_alternate_recommendation_phrasings(self):
+        queries = [
+            "List stances from the indexed research.",
+            "What are the calls across asset classes?",
+            "Show investment views from the extracted reports.",
+            "Which assets are overweight or underweight?",
+        ]
+
+        for query in queries:
+            with self.subTest(query=query):
+                self.assertTrue(_wants_structured_recommendations(query))
+
+    def test_does_not_match_generic_view_questions(self):
+        self.assertFalse(
+            _wants_structured_recommendations("What is the current view on duration?")
         )
 
 

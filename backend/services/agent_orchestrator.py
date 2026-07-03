@@ -27,19 +27,35 @@ TOOL_DISPLAY_NAMES = {
     "web_search": "Live Web Search",
 }
 MAX_CHAT_RECOMMENDATIONS = 20
+STRUCTURED_RECOMMENDATION_QUERY_MARKERS = (
+    "recommendation",
+    "recommendations",
+    "asset allocation",
+    "trade idea",
+    "trade ideas",
+    "stance",
+    "stances",
+    "overweight",
+    "underweight",
+    "investment view",
+    "investment views",
+    "structured",
+    "calls",
+)
+
+
+def _has_query_marker(query: str, marker: str) -> bool:
+    if " " in marker:
+        return marker in query
+    return re.search(rf"\b{re.escape(marker)}\b", query) is not None
 
 
 def _wants_structured_recommendations(query: str) -> bool:
     """Return True only for queries asking for structured recommendation data."""
     normalized = query.lower()
     return any(
-        marker in normalized
-        for marker in (
-            "recommendation",
-            "asset allocation",
-            "trade idea",
-            "trade ideas",
-        )
+        _has_query_marker(normalized, marker)
+        for marker in STRUCTURED_RECOMMENDATION_QUERY_MARKERS
     )
 
 
