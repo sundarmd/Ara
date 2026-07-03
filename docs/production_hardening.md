@@ -22,7 +22,7 @@ Keep provider keys and deployment secrets out of source control. Use a secret ma
 
 ### CI And Evals
 
-Before restoring CI, the minimum gate should run backend unit tests, frontend lint, frontend build, and the eval dry-run. GitHub Actions are intentionally absent right now, so these checks are local-only until CI is deliberately reintroduced.
+GitHub Actions now runs a lightweight quality gate on pushes and pull requests to `main` and `beta`. The workflow checks backend unit tests, frontend lint, frontend build, golden eval dry-run validation, and Docker Compose configuration. This is a development and demo-readiness gate; production release governance would still need branch protection, deployment smoke tests, eval thresholds, monitoring, and rollback procedures.
 
 ### Observability And Audit Logs
 

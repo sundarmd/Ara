@@ -24,6 +24,21 @@ docker compose up -d
 - **Frontend**: http://localhost:3000
 - **API Docs**: http://localhost:8000/docs
 
+### Automated Quality Gates
+
+GitHub Actions runs on pushes and pull requests to `main` and `beta`. The
+workflow checks backend unit tests, frontend lint/build, golden eval dry-run
+validation, and Docker Compose configuration.
+
+Run the same checks locally:
+
+```bash
+cd backend && python -m unittest discover -s tests -v
+cd ../frontend && npm run lint && npm run build
+cd .. && python3 evals/run_eval.py --dry-run
+docker compose config --quiet
+```
+
 ### Optional API-Key Gate
 
 Local demos run with `REQUIRE_API_KEY=false` by default. If you enable
