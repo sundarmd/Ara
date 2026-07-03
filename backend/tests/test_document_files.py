@@ -120,10 +120,7 @@ class DocumentDeleteEndpointTests(unittest.IsolatedAsyncioTestCase):
             with (
                 patch.object(main, "get_document_store", return_value=doc_store),
                 patch.object(main, "get_vector_store", return_value=vector_store),
-                patch(
-                    "services.recommendations.get_recommendation_store",
-                    return_value=recommendation_store,
-                ),
+                patch.object(main, "get_recommendation_store", return_value=recommendation_store),
                 patch.object(main.settings, "DATA_DIR", str(reports_dir)),
                 patch.object(main.settings, "REPORTS_DIR", str(reports_dir)),
                 patch.object(main.settings, "IMAGES_DIR", str(images_root)),
@@ -153,10 +150,7 @@ class DocumentDeleteEndpointTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(main, "get_document_store", return_value=doc_store),
             patch.object(main, "get_vector_store", return_value=vector_store),
-            patch(
-                "services.recommendations.get_recommendation_store",
-                return_value=recommendation_store,
-            ),
+            patch.object(main, "get_recommendation_store", return_value=recommendation_store),
             patch.object(main.os.path, "exists", return_value=False),
         ):
             with self.assertRaises(HTTPException) as raised:

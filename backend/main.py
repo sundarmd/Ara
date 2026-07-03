@@ -4,6 +4,7 @@ import hashlib
 import logging
 import json
 import secrets
+import shutil
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 
@@ -114,6 +115,65 @@ def _build_upload_error_event(filename: str, detail: str, code: str = "upload_er
         "percent": 100,
         "detail": detail,
     }
+
+
+def _delete_document_artifacts(
+    doc: Any,
+    *,
+    doc_store: Optional[DocumentStore] = None,
+    vector_store: Optional[Any] = None,
+    rec_store: Optional[Any] = None,
+    delete_metadata: bool = True,
+) -> dict:
+    """Delete all persisted artifacts for an indexed document."""
+    doc_id = doc.doc_id
+    deleted_items = {
+        "doc_id": doc_id,
+        "filename": doc.filename,
+        "pdf_deleted": False,
+        "metadata_deleted": False,
+        "vectors_deleted": False,
+        "vectors_deleted_count": 0,
+        "recommendations_deleted": 0,
+        "images_deleted": 0,
+        "tables_deleted": 0,
+    }
+
+    pdf_path = os.path.join(settings.reports_dir, f"{doc_id}.pdf")
+    if os.path.exists(pdf_path):
+        os.remove(pdf_path)
+        deleted_items["pdf_deleted"] = True
+
+    vector_store = vector_store or get_vector_store()
+    try:
+        vector_count = vector_store.delete_document(doc_id)
+        deleted_items["vectors_deleted"] = True
+        deleted_items["vectors_deleted_count"] = vector_count
+    except Exception as e:
+        logger.error(f"Failed to delete vectors for {doc_id}: {e}")
+        raise RuntimeError(f"Failed to delete vectors for {doc_id}: {e}") from e
+
+    rec_store = rec_store or get_recommendation_store()
+    try:
+        deleted_items["recommendations_deleted"] = rec_store.delete_by_doc_id(doc_id)
+    except Exception as e:
+        logger.warning(f"Failed to delete recommendations for {doc_id}: {e}")
+
+    images_dir = os.path.join(settings.IMAGES_DIR, doc_id)
+    if os.path.exists(images_dir):
+        deleted_items["images_deleted"] = len(os.listdir(images_dir))
+        shutil.rmtree(images_dir)
+
+    tables_dir = os.path.join(settings.TABLES_DIR, doc_id)
+    if os.path.exists(tables_dir):
+        deleted_items["tables_deleted"] = len(os.listdir(tables_dir))
+        shutil.rmtree(tables_dir)
+
+    if delete_metadata:
+        doc_store = doc_store or get_document_store()
+        deleted_items["metadata_deleted"] = doc_store.delete_document(doc_id)
+
+    return deleted_items
 
 
 async def _spool_upload_file(upload_file: UploadFile, doc_id: str) -> dict:
@@ -273,12 +333,10 @@ async def upload_files(
             if existing_doc:
                 yield f"data: {json.dumps({'file': filename, 'step': 'preprocessing', 'percent': 10, 'detail': f'Replacing existing version...'})}\n\n"
                 try:
-                    v_store = get_vector_store()
-                    v_store.delete_document(existing_doc.doc_id)
-                    doc_store.delete_document(existing_doc.doc_id)
-                    old_path = os.path.join(settings.reports_dir, f"{existing_doc.doc_id}.pdf")
-                    if os.path.exists(old_path):
-                        os.remove(old_path)
+                    _delete_document_artifacts(
+                        existing_doc,
+                        doc_store=doc_store,
+                    )
                 except Exception as e:
                     logger.warning(f"Cleanup failed for {filename}: {e}")
             
@@ -437,71 +495,23 @@ async def delete_document(doc_id: str):
     Completely delete a document and all associated data.
     Removes: PDF file, metadata, vector embeddings, recommendations.
     """
-    import shutil
-    from services.recommendations import get_recommendation_store
-
     doc_store = get_document_store()
-    vector_store = get_vector_store()
-    rec_store = get_recommendation_store()
 
     # Check document exists
     doc = doc_store.get_document(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    deleted_items = {
-        "doc_id": doc_id,
-        "filename": doc.filename,
-        "pdf_deleted": False,
-        "metadata_deleted": False,
-        "vectors_deleted": False,
-        "vectors_deleted_count": 0,
-        "recommendations_deleted": 0,
-        "images_deleted": 0,
-        "tables_deleted": 0,
-    }
-
-    # 1. Delete PDF file
-    pdf_path = os.path.join(settings.reports_dir, f"{doc_id}.pdf")
-    if os.path.exists(pdf_path):
-        os.remove(pdf_path)
-        deleted_items["pdf_deleted"] = True
-
-    # 2. Delete vector embeddings
     try:
-        vector_count = vector_store.delete_document(doc_id)
-        deleted_items["vectors_deleted"] = True
-        deleted_items["vectors_deleted_count"] = vector_count
+        deleted_items = _delete_document_artifacts(
+            doc,
+            doc_store=doc_store,
+        )
     except Exception as e:
-        logger.error(f"Failed to delete vectors for {doc_id}: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to delete vectors for {doc_id}: {e}",
+            detail=str(e),
         ) from e
-
-    # 3. Delete recommendations
-    try:
-        count = rec_store.delete_by_doc_id(doc_id)
-        deleted_items["recommendations_deleted"] = count
-    except Exception as e:
-        logger.warning(f"Failed to delete recommendations for {doc_id}: {e}")
-
-    # 4. Delete extracted images (if any)
-    images_dir = os.path.join(settings.IMAGES_DIR, doc_id)
-    if os.path.exists(images_dir):
-        image_count = len(os.listdir(images_dir))
-        shutil.rmtree(images_dir)
-        deleted_items["images_deleted"] = image_count
-
-    # 5. Delete table artifacts (if any)
-    tables_dir = os.path.join(settings.TABLES_DIR, doc_id)
-    if os.path.exists(tables_dir):
-        table_count = len(os.listdir(tables_dir))
-        shutil.rmtree(tables_dir)
-        deleted_items["tables_deleted"] = table_count
-
-    # 6. Delete document metadata (last, so we can still reference doc info above)
-    deleted_items["metadata_deleted"] = doc_store.delete_document(doc_id)
 
     logger.info(f"Document deleted: {deleted_items}")
     return deleted_items
