@@ -26,6 +26,21 @@ TOOL_DISPLAY_NAMES = {
     "search_knowledge_base": "Research Report Knowledge Base",
     "web_search": "Live Web Search",
 }
+MAX_CHAT_RECOMMENDATIONS = 20
+
+
+def _wants_structured_recommendations(query: str) -> bool:
+    """Return True only for queries asking for structured recommendation data."""
+    normalized = query.lower()
+    return any(
+        marker in normalized
+        for marker in (
+            "recommendation",
+            "asset allocation",
+            "trade idea",
+            "trade ideas",
+        )
+    )
 
 
 def _build_chat_history(messages: List[ChatMessage]) -> List[Tuple[str, str]]:
@@ -169,10 +184,15 @@ class AgentOrchestrator:
                             "content": "Synthesizing answer."
                         })
 
+                        recommendations = await self._load_structured_recommendations(
+                            request=request,
+                            query=input_text,
+                        )
+
                         yield self._format_event(StreamEventType.COMPLETE, {
                             "answer": clean_answer,
                             "sources": collected_sources,
-                            "recommendations": []
+                            "recommendations": recommendations,
                         })
             
         except Exception as e:
@@ -232,6 +252,33 @@ class AgentOrchestrator:
             item
             for item in items
             if isinstance(item, dict) and "metadata" in item
+        ]
+
+    async def _load_structured_recommendations(
+        self,
+        request: ChatRequest,
+        query: str,
+    ) -> list[Dict[str, Any]]:
+        if not _wants_structured_recommendations(query):
+            return []
+
+        try:
+            from services.recommendations import get_recommendation_store
+
+            store = get_recommendation_store()
+            recommendations = await store.get_by_filters(
+                bank=request.bank,
+                asset_class=request.asset_class,
+                source_type="sell_side",
+                is_active=True,
+            )
+        except Exception:
+            logger.warning("Failed to load structured recommendations for chat", exc_info=True)
+            return []
+
+        return [
+            recommendation.model_dump(exclude_none=True)
+            for recommendation in recommendations[:MAX_CHAT_RECOMMENDATIONS]
         ]
 
     def _build_tool_start_trace(self, tool_name: str, tool_input: Dict[str, Any]) -> str:

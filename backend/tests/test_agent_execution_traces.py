@@ -2,9 +2,9 @@ import asyncio
 import json
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
-from models.schemas import ChatRequest
+from models.schemas import ChatRequest, Recommendation
 from services.agent_orchestrator import AgentOrchestrator, _build_chat_history
 
 
@@ -149,6 +149,104 @@ class AgentExecutionTraceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(error_trace["details"][0]["error"], "vector store unavailable")
         self.assertEqual(error_trace["details"][0]["source_count"], 0)
         self.assertEqual(complete_event["sources"], [])
+
+    async def test_orchestrator_includes_stored_recommendations_for_recommendation_queries(self):
+        class FakeAgentExecutor:
+            def __init__(self, agent, tools, verbose):
+                pass
+
+            async def astream_events(self, payload, version):
+                yield {
+                    "event": "on_chain_end",
+                    "name": "AgentExecutor",
+                    "data": {"output": {"output": "Here are the structured recommendations."}},
+                }
+
+        orchestrator = object.__new__(AgentOrchestrator)
+        orchestrator.llm = Mock()
+        recommendation_store = Mock()
+        recommendation_store.get_by_filters = AsyncMock(return_value=[
+            Recommendation(
+                id="rec-1",
+                doc_id="doc-1",
+                bank="GS",
+                source_type="sell_side",
+                asset_class="rates",
+                sub_asset="US duration",
+                stance="Long",
+                horizon="3m",
+                rationale="Soft landing supports duration.",
+                page=4,
+                section="Duration",
+                confidence="high",
+                date="2026-01-01",
+            )
+        ])
+
+        request = ChatRequest(
+            messages=[{
+                "role": "user",
+                "content": "List the structured recommendations from the indexed research and include stance, asset class, and rationale.",
+            }],
+            bank="GS",
+            asset_class="rates",
+        )
+
+        with (
+            patch("langchain.agents.create_tool_calling_agent", return_value=Mock()),
+            patch("langchain.agents.AgentExecutor", FakeAgentExecutor),
+            patch("services.recommendations.get_recommendation_store", return_value=recommendation_store),
+        ):
+            events = [parse_sse(event) async for event in orchestrator.process_query(request)]
+
+        complete_event = [event for event in events if event["type"] == "complete"][0]
+        recommendations = complete_event["recommendations"]
+
+        recommendation_store.get_by_filters.assert_awaited_once_with(
+            bank="GS",
+            asset_class="rates",
+            source_type="sell_side",
+            is_active=True,
+        )
+        self.assertEqual(len(recommendations), 1)
+        self.assertEqual(recommendations[0]["asset_class"], "rates")
+        self.assertEqual(recommendations[0]["stance"], "Long")
+        self.assertEqual(recommendations[0]["rationale"], "Soft landing supports duration.")
+        self.assertEqual(recommendations[0]["page"], 4)
+        self.assertEqual(recommendations[0]["section"], "Duration")
+
+    async def test_orchestrator_does_not_load_recommendations_for_general_queries(self):
+        class FakeAgentExecutor:
+            def __init__(self, agent, tools, verbose):
+                pass
+
+            async def astream_events(self, payload, version):
+                yield {
+                    "event": "on_chain_end",
+                    "name": "AgentExecutor",
+                    "data": {"output": {"output": "Duration views are constructive."}},
+                }
+
+        orchestrator = object.__new__(AgentOrchestrator)
+        orchestrator.llm = Mock()
+        recommendation_store = Mock()
+        recommendation_store.get_by_filters = AsyncMock(return_value=[])
+
+        request = ChatRequest(
+            messages=[{"role": "user", "content": "What is the current view on duration?"}],
+        )
+
+        with (
+            patch("langchain.agents.create_tool_calling_agent", return_value=Mock()),
+            patch("langchain.agents.AgentExecutor", FakeAgentExecutor),
+            patch("services.recommendations.get_recommendation_store", return_value=recommendation_store),
+        ):
+            events = [parse_sse(event) async for event in orchestrator.process_query(request)]
+
+        complete_event = [event for event in events if event["type"] == "complete"][0]
+
+        recommendation_store.get_by_filters.assert_not_called()
+        self.assertEqual(complete_event["recommendations"], [])
 
     async def test_orchestrator_emits_typed_chat_errors(self):
         class FakeAgentExecutor:
