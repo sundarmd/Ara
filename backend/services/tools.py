@@ -100,7 +100,7 @@ async def search_knowledge_base(
             doc_id = meta.get('doc_id')
             page_start = meta.get('page_start', 1)
             page_end = meta.get('page_end', page_start)
-            deep_link = f"{settings.API_BASE_URL}/documents/{doc_id}/file#page={page_start}" if doc_id else None
+            deep_link = f"{settings.API_BROWSER_BASE_URL}/documents/{doc_id}/file#page={page_start}" if doc_id else None
             title = meta.get('title') or meta.get('filename') or 'Unknown Document'
 
             if doc_id:

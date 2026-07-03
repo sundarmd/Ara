@@ -182,3 +182,32 @@ class DocumentFileLinkTests(unittest.IsolatedAsyncioTestCase):
             source["metadata"]["url"].endswith("/documents/doc-1/file#page=7"),
             source["metadata"]["url"],
         )
+
+    async def test_knowledge_base_sources_use_public_base_url_when_configured(self):
+        search_results = [
+            {
+                "text": "A report chunk",
+                "metadata": {
+                    "doc_id": "doc-1",
+                    "page_start": 3,
+                },
+            }
+        ]
+        doc_store = Mock()
+        doc_store.get_document.return_value = SimpleNamespace(
+            title="Global Strategy",
+            filename="global-strategy.pdf",
+        )
+
+        with (
+            patch.object(tools, "search_documents", AsyncMock(return_value=search_results)),
+            patch.object(tools, "get_document_store", return_value=doc_store),
+            patch.object(tools.settings, "API_PUBLIC_BASE_URL", "https://ara.example.com/api"),
+        ):
+            output = await tools.search_knowledge_base.ainvoke({"query": "EM assets"})
+
+        source = json.loads(output)["sources"][0]
+        self.assertEqual(
+            source["metadata"]["url"],
+            "https://ara.example.com/api/documents/doc-1/file#page=3",
+        )

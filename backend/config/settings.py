@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     # API settings
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
+    API_PUBLIC_BASE_URL: Optional[str] = None
     ENVIRONMENT: str = "development"
     ENABLE_DEBUG_ENDPOINTS: bool = False
     AUTO_SEED_MOCK_DATA: Optional[bool] = None
@@ -82,6 +83,11 @@ class Settings(BaseSettings):
         """Construct base URL for deep links."""
         host = self.API_HOST if self.API_HOST != "0.0.0.0" else "localhost"
         return f"http://{host}:{self.API_PORT}"
+
+    @property
+    def API_BROWSER_BASE_URL(self) -> str:
+        """Public base URL for browser-facing links."""
+        return (self.API_PUBLIC_BASE_URL or self.API_BASE_URL).rstrip("/")
 
     @property
     def auto_seed_mock_data(self) -> bool:

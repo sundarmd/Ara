@@ -33,3 +33,15 @@ class CorsSettingsTests(unittest.TestCase):
 
         self.assertNotEqual(cors_middleware.kwargs["allow_origins"], ["*"])
         self.assertFalse(cors_middleware.kwargs["allow_credentials"])
+
+
+class PublicBaseUrlSettingsTests(unittest.TestCase):
+    def test_browser_base_url_defaults_to_localhost_for_zero_bind_host(self):
+        settings = Settings(API_HOST="0.0.0.0", API_PORT=9000)
+
+        self.assertEqual(settings.API_BROWSER_BASE_URL, "http://localhost:9000")
+
+    def test_browser_base_url_uses_public_override_without_trailing_slash(self):
+        settings = Settings(API_PUBLIC_BASE_URL="https://ara.example.com/api/")
+
+        self.assertEqual(settings.API_BROWSER_BASE_URL, "https://ara.example.com/api")

@@ -14,7 +14,7 @@ Replace the optional API-key gate with real identity, session handling, and role
 
 ### CORS And Public URLs
 
-Lock CORS to deployed frontend origins. Configure public API and citation-link base URLs explicitly for reverse proxies, HTTPS domains, and non-local deployments instead of relying on local host/port inference.
+Lock CORS to deployed frontend origins. Configure `API_PUBLIC_BASE_URL` for public API and citation-link base URLs behind reverse proxies, HTTPS domains, and non-local deployments instead of relying on local host/port inference.
 
 ### Secrets
 
