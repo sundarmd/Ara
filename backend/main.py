@@ -266,7 +266,7 @@ async def health_check():
     return {"status": "healthy"}
 
 
-@app.post("/upload")
+@app.post("/upload", dependencies=[Depends(verify_api_key)])
 async def upload_files(
     files: List[UploadFile] = File(None),  # Accept multiple files
     file: UploadFile = File(None),         # Accept single file (frontend fallback)
@@ -466,7 +466,7 @@ async def serve_document_file(doc_id: str):
     )
 
 
-@app.get("/documents")
+@app.get("/documents", dependencies=[Depends(verify_api_key)])
 async def list_documents():
     """Get all indexed documents."""
     doc_store = get_document_store()
@@ -568,7 +568,7 @@ async def get_stats():
         )
 
 
-@app.post("/chat/stream")
+@app.post("/chat/stream", dependencies=[Depends(verify_api_key)])
 async def chat_stream_endpoint(request: ChatRequest):
     """
     Streaming chat with the research assistant.

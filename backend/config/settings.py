@@ -54,7 +54,7 @@ class Settings(BaseSettings):
         default_factory=lambda: ["GET", "POST", "DELETE", "OPTIONS"]
     )
     CORS_ALLOWED_HEADERS: List[str] = Field(
-        default_factory=lambda: ["Content-Type", "Authorization"]
+        default_factory=lambda: ["Content-Type", "Authorization", "X-API-Key"]
     )
     REQUIRE_API_KEY: bool = False
     API_KEY: Optional[str] = None

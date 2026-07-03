@@ -39,18 +39,28 @@ class ApiKeyAuthTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(raised.exception.status_code, 500)
 
 
-class DeleteRouteAuthTests(unittest.TestCase):
-    def test_delete_route_has_api_key_dependency(self):
-        delete_route = next(
+class ApiKeyProtectedRouteTests(unittest.TestCase):
+    def _route_has_api_key_dependency(self, path: str, method: str) -> bool:
+        route = next(
             route
             for route in main.app.routes
-            if getattr(route, "path", None) == "/documents/{doc_id}"
-            and "DELETE" in getattr(route, "methods", set())
+            if getattr(route, "path", None) == path
+            and method in getattr(route, "methods", set())
         )
 
-        self.assertTrue(
-            any(
-                dependency.call is main.verify_api_key
-                for dependency in delete_route.dependant.dependencies
-            )
+        return any(
+            dependency.call is main.verify_api_key
+            for dependency in route.dependant.dependencies
         )
+
+    def test_mutating_and_data_routes_have_api_key_dependency(self):
+        protected_routes = [
+            ("/upload", "POST"),
+            ("/documents", "GET"),
+            ("/documents/{doc_id}", "DELETE"),
+            ("/chat/stream", "POST"),
+        ]
+
+        for path, method in protected_routes:
+            with self.subTest(path=path, method=method):
+                self.assertTrue(self._route_has_api_key_dependency(path, method))

@@ -206,15 +206,16 @@ export function Sidebar() {
                                                         key={doc.doc_id}
                                                         className="group flex min-h-10 items-center gap-1 rounded-[14px] px-2 transition-colors hover:bg-[hsl(var(--sidebar-panel))]"
                                                     >
-                                                        <a
-                                                            href={api.getStreamUrl(`/documents/${doc.doc_id}/file`)}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                void api.openUrl(api.getStreamUrl(`/documents/${doc.doc_id}/file`)).catch(console.error);
+                                                            }}
                                                             className="flex min-w-0 flex-1 items-center gap-2 text-[hsl(var(--sidebar-muted))] transition-colors hover:text-[hsl(var(--sidebar-foreground))]"
                                                         >
                                                             <FileText size={16} className="shrink-0" />
                                                             <span className="truncate text-sm font-medium">{doc.filename}</span>
-                                                        </a>
+                                                        </button>
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();

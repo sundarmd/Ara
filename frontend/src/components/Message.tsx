@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { api } from '@/services/api';
 
 interface MessageProps {
     message: ChatMessage;
@@ -65,11 +66,13 @@ function DistinctSourceList({ sources }: { sources: Source[] }) {
             {isOpen && (
                 <div className="grid gap-2 grid-cols-1 md:grid-cols-2 mt-2 animate-in slide-in-from-top-1 fade-in duration-200">
                     {distinctSources.map((source, idx) => (
-                        <a
+                        <button
                             key={idx}
-                            href={source.metadata?.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            type="button"
+                            disabled={!source.metadata?.url}
+                            onClick={() => {
+                                void api.openUrl(source.metadata?.url).catch(console.error);
+                            }}
                             className={cn(
                                 "flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors group text-left",
                                 !source.metadata?.url && 'pointer-events-none'
@@ -89,7 +92,7 @@ function DistinctSourceList({ sources }: { sources: Source[] }) {
                                     {source.metadata?.page_start ? `Pg ${source.metadata.page_start}` : 'Web/Snippet'}
                                 </div>
                             </div>
-                        </a>
+                        </button>
                     ))}
                 </div>
             )}
@@ -173,7 +176,7 @@ function ContentWithCitations({ content, sources: _sources }: { content: string;
                                                             e.preventDefault();
                                                             e.stopPropagation();
                                                             if (source?.metadata?.url) {
-                                                                window.open(source.metadata.url, '_blank');
+                                                                void api.openUrl(source.metadata.url).catch(console.error);
                                                             }
                                                         }}
                                                     >

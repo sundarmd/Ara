@@ -19,6 +19,11 @@ class CorsSettingsTests(unittest.TestCase):
         self.assertEqual(settings.CORS_ALLOWED_METHODS, ["GET", "POST"])
         self.assertEqual(settings.CORS_ALLOWED_HEADERS, ["Content-Type", "Authorization"])
 
+    def test_default_cors_headers_include_api_key_header(self):
+        settings = Settings()
+
+        self.assertIn("X-API-Key", settings.CORS_ALLOWED_HEADERS)
+
     def test_cors_middleware_uses_explicit_origins_without_credentials_by_default(self):
         cors_middleware = next(
             middleware

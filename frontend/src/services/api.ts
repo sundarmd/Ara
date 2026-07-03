@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config/constants';
+import { API_BASE_URL, API_KEY, API_KEY_HEADER_NAME } from '../config/constants';
 
 class ApiService {
     private baseUrl: string;
@@ -7,10 +7,21 @@ class ApiService {
         this.baseUrl = API_BASE_URL;
     }
 
+    getAuthHeaders(headers: HeadersInit = {}) {
+        const nextHeaders = new Headers(headers);
+        if (API_KEY && !nextHeaders.has(API_KEY_HEADER_NAME)) {
+            nextHeaders.set(API_KEY_HEADER_NAME, API_KEY);
+        }
+        return nextHeaders;
+    }
+
     private async request(endpoint: string, options: RequestInit = {}) {
         const url = `${this.baseUrl}${endpoint}`;
         try {
-            const response = await fetch(url, options);
+            const response = await fetch(url, {
+                ...options,
+                headers: this.getAuthHeaders(options.headers),
+            });
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
@@ -76,6 +87,40 @@ class ApiService {
      */
     getStreamUrl(endpoint: string): string {
         return `${this.baseUrl}${endpoint}`;
+    }
+
+    async openUrl(url?: string | null) {
+        if (!url) return;
+
+        if (!API_KEY || !this.isApiUrl(url)) {
+            window.open(url, '_blank', 'noopener,noreferrer');
+            return;
+        }
+
+        const target = new URL(url, window.location.origin);
+        const hash = target.hash;
+        target.hash = '';
+
+        const response = await fetch(target.toString(), {
+            headers: this.getAuthHeaders(),
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const blobUrl = URL.createObjectURL(await response.blob());
+        window.open(`${blobUrl}${hash}`, '_blank', 'noopener,noreferrer');
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    }
+
+    private isApiUrl(url: string) {
+        try {
+            const target = new URL(url, window.location.origin);
+            const apiUrl = new URL(this.baseUrl, window.location.origin);
+            return target.origin === apiUrl.origin;
+        } catch {
+            return false;
+        }
     }
 
     /**

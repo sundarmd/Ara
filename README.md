@@ -24,6 +24,20 @@ docker compose up -d
 - **Frontend**: http://localhost:3000
 - **API Docs**: http://localhost:8000/docs
 
+### Optional API-Key Gate
+
+Local demos run with `REQUIRE_API_KEY=false` by default. If you enable
+`REQUIRE_API_KEY=true`, set the same key for the backend and frontend:
+
+```bash
+API_KEY=...
+VITE_API_KEY=...
+```
+
+The frontend sends `X-API-Key` on API calls and fetches protected PDF source
+links before opening them. This is a coarse local/demo gate, not production
+identity or RBAC.
+
 ---
 
 ## Architecture

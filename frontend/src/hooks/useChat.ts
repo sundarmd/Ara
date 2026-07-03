@@ -86,7 +86,7 @@ export function useChat(): UseChatReturn {
             const url = api.getStreamUrl('/chat/stream');
             const response = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: api.getAuthHeaders({ 'Content-Type': 'application/json' }),
                 signal: abortController.signal,
                 body: JSON.stringify({ messages: requestMessages }),
             });
