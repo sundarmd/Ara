@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -30,6 +31,23 @@ class EvalResult:
     case_id: str
     passed: bool
     failures: list[str]
+
+
+def answer_citation_ids(answer: str) -> set[int]:
+    """Return numeric bracket citations from an answer, for example [1]."""
+    return {int(match) for match in re.findall(r"\[(\d+)\]", answer)}
+
+
+def source_citation_ids(sources: list[Any]) -> set[int]:
+    ids: set[int] = set()
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        try:
+            ids.add(int(source["citation_id"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return ids
 
 
 def load_cases(path: Path) -> list[dict[str, Any]]:
@@ -149,6 +167,11 @@ def check_case(case: dict[str, Any], payload: dict[str, Any]) -> EvalResult:
     min_sources = expect.get("min_sources")
     if min_sources is not None and len(sources) < int(min_sources):
         failures.append(f"expected at least {min_sources} sources, got {len(sources)}")
+
+    if expect.get("answer_must_have_citations"):
+        matching_ids = answer_citation_ids(answer) & source_citation_ids(sources)
+        if not matching_ids:
+            failures.append("answer missing citation matching returned source IDs")
 
     min_recommendations = expect.get("min_recommendations")
     if min_recommendations is not None and len(recommendations) < int(min_recommendations):

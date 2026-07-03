@@ -4,6 +4,7 @@
     "question": "What is the current view on duration in the indexed research?",
     "expect": {
       "min_sources": 1,
+      "answer_must_have_citations": true,
       "answer_must_include_any": ["duration", "rates", "fixed income"]
     }
   },
