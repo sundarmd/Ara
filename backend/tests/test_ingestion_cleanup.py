@@ -16,6 +16,77 @@ def http_status_error(status_code: int) -> httpx.HTTPStatusError:
 
 
 class IngestionCleanupTests(unittest.IsolatedAsyncioTestCase):
+    async def test_recommendation_extraction_input_includes_page_and_section_markers(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            file_path = tmp_path / "doc-1.pdf"
+            file_path.write_bytes(b"%PDF-1.4\n")
+
+            segments = [
+                Segment(
+                    doc_id="doc-1",
+                    page=7,
+                    segment_type="body",
+                    text="Long duration versus cash.",
+                    section="Rates Strategy",
+                ),
+                Segment(
+                    doc_id="doc-1",
+                    page=8,
+                    segment_type="body",
+                    text="Neutral credit spreads.",
+                ),
+            ]
+            chunks = [
+                Chunk(
+                    id="chunk-1",
+                    doc_id="doc-1",
+                    bank="GS",
+                    asset_class="rates",
+                    report_date="2026-01-01",
+                    page_start=7,
+                    page_end=8,
+                    section="Rates Strategy",
+                    segment_types=["body"],
+                    text="Long duration versus cash.\nNeutral credit spreads.",
+                )
+            ]
+
+            vector_store = Mock()
+            vector_store.index_chunks = AsyncMock()
+            extract_recommendations = AsyncMock(return_value=[])
+
+            with (
+                patch.object(ingestion, "parse_pdf_to_segments", new=AsyncMock(return_value=segments)),
+                patch.object(ingestion, "build_chunks", return_value=chunks),
+                patch.object(ingestion, "get_vector_store", return_value=vector_store),
+                patch.object(
+                    ingestion,
+                    "extract_recommendations_with_mistral",
+                    new=extract_recommendations,
+                ),
+            ):
+                result = await ingestion.ingest_pdf(
+                    doc_id="doc-1",
+                    file_path=str(file_path),
+                    bank="GS",
+                    asset_class="rates",
+                    report_date="2026-01-01",
+                )
+
+        self.assertEqual(result["status"], "success")
+        raw_markdown = extract_recommendations.call_args.kwargs["raw_markdown"]
+        self.assertIn("[Page 7 | Section: Rates Strategy]", raw_markdown)
+        self.assertIn("[Page 8]", raw_markdown)
+        self.assertLess(
+            raw_markdown.index("[Page 7 | Section: Rates Strategy]"),
+            raw_markdown.index("Long duration versus cash."),
+        )
+        self.assertLess(
+            raw_markdown.index("[Page 8]"),
+            raw_markdown.index("Neutral credit spreads."),
+        )
+
     async def test_ingestion_failure_cleans_partial_artifacts(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)

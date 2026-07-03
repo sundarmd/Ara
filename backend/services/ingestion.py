@@ -13,7 +13,7 @@ import os
 import shutil
 from typing import Optional, List, Callable, Awaitable
 
-from models.schemas import Chunk, Recommendation
+from models.schemas import Chunk, Recommendation, Segment
 from config.settings import settings
 from services.document_reader import parse_pdf_to_segments
 from services.chunker import build_chunks
@@ -29,6 +29,25 @@ logger = logging.getLogger(__name__)
 
 # Progress callback type
 ProgressCallback = Callable[[str, int, str], Awaitable[None]]
+
+
+def _build_recommendation_markdown(segments: List[Segment]) -> str:
+    """Preserve page and section context for recommendation extraction."""
+    blocks: List[str] = []
+
+    for segment in segments:
+        text = segment.text.strip()
+        if not text:
+            continue
+
+        marker_parts = [f"Page {segment.page}"]
+        section = (segment.section or "").strip()
+        if section:
+            marker_parts.append(f"Section: {section}")
+
+        blocks.append(f"[{' | '.join(marker_parts)}]\n{text}")
+
+    return "\n\n".join(blocks)
 
 
 def _cleanup_failed_ingestion(
@@ -230,7 +249,7 @@ async def ingest_pdf(
         # 5. Extract structured recommendations (75-95%)
         ingestion_provider_name = "Mistral recommendations"
         await emit("recommendations", 78, "Extracting structured recommendations...")
-        raw_markdown = "\n\n".join([s.text for s in segments])
+        raw_markdown = _build_recommendation_markdown(segments)
         recommendations: List[Recommendation] = await extract_recommendations_with_mistral(
             doc_id=doc_id,
             bank=bank,
