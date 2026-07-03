@@ -42,6 +42,11 @@ class RecordingLLMClient:
         return {"recommendations": extracted}
 
 
+class FailingLLMClient:
+    async def get_chat_completion(self, messages, json_mode=False):
+        raise RuntimeError("provider unavailable")
+
+
 class RecommendationExtractionTests(unittest.IsolatedAsyncioTestCase):
     async def test_extracts_recommendations_after_first_20000_characters(self):
         client = RecordingLLMClient()
@@ -93,3 +98,17 @@ class RecommendationExtractionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(extracted), 1)
         self.assertEqual(extracted[0].sub_asset, "US duration")
+
+    async def test_provider_failure_is_raised_for_ingestion_warning(self):
+        with (
+            patch.object(recommendations.settings, "MISTRAL_API_KEY", "test-key"),
+            patch("services.llm_client.get_llm_client", return_value=FailingLLMClient()),
+        ):
+            with self.assertRaises(RuntimeError) as raised:
+                await recommendations.extract_recommendations_with_mistral(
+                    doc_id="doc-1",
+                    bank="GS",
+                    raw_markdown="# Rates\nLong duration.",
+                )
+
+        self.assertEqual(str(raised.exception), "provider unavailable")

@@ -139,6 +139,12 @@ export function DropZone({ children }: DropZoneProps) {
                                         </span>
                                     </div>
                                 )}
+                                {file.warnings && file.warnings.length > 0 && (
+                                    <div className="mt-2 flex items-start gap-1 text-xs text-amber-600">
+                                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                                        <span>{file.warnings.join(' ')}</span>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>

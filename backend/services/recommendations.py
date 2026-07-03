@@ -549,9 +549,9 @@ async def extract_recommendations_with_mistral(
         )
         return deduped
 
-    except Exception as e:
+    except Exception:
         logger.error("Recommendation extraction failed", exc_info=True, extra={"doc_id": doc_id, "bank": bank})
-        return []
+        raise
 
 
 # Singleton instance

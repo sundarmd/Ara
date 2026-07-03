@@ -19,6 +19,7 @@ export interface FileProgress {
     status: 'processing' | 'complete' | 'duplicate' | 'error';
     bank?: string;
     asset_class?: string;
+    warnings?: string[];
 }
 
 interface UploadProgressEvent {
@@ -28,6 +29,7 @@ interface UploadProgressEvent {
     detail?: string;
     bank?: string;
     asset_class?: string;
+    warnings?: string[];
 }
 
 interface DocumentsContextType {
@@ -107,6 +109,9 @@ export function DocumentsProvider({ children }: { children: ReactNode }) {
                 const filename = data.file;
                 if (!filename) continue;
                 const isError = data.step === 'error';
+                const warnings = Array.isArray(data.warnings)
+                    ? data.warnings.filter((warning): warning is string => typeof warning === 'string' && warning.length > 0)
+                    : [];
                 if (isError) {
                     hadErrors = true;
                     const detail = data.detail || 'PDF processing failed';
@@ -117,6 +122,12 @@ export function DocumentsProvider({ children }: { children: ReactNode }) {
                             duration: 12000,
                         });
                     }
+                }
+                if (data.step === 'complete' && warnings.length > 0) {
+                    toast.warning('Upload completed with warnings', {
+                        description: warnings.join('\n'),
+                        duration: 12000,
+                    });
                 }
 
                 setUploads(prev => ({
@@ -131,6 +142,7 @@ export function DocumentsProvider({ children }: { children: ReactNode }) {
                                 data.step === 'error' ? 'error' : 'processing',
                         bank: data.bank,
                         asset_class: data.asset_class,
+                        warnings,
                     }
                 }));
             }

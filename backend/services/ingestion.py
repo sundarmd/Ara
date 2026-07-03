@@ -29,6 +29,9 @@ logger = logging.getLogger(__name__)
 
 # Progress callback type
 ProgressCallback = Callable[[str, int, str], Awaitable[None]]
+RECOMMENDATION_EXTRACTION_WARNING = (
+    "Recommendation extraction failed; document search is still available."
+)
 
 
 def _build_recommendation_markdown(segments: List[Segment]) -> str:
@@ -169,6 +172,7 @@ async def ingest_pdf(
         "segments": 0,
         "chunks": 0,
         "recommendations": 0,
+        "warnings": [],
         "status": "processing"
     }
 
@@ -250,11 +254,21 @@ async def ingest_pdf(
         ingestion_provider_name = "Mistral recommendations"
         await emit("recommendations", 78, "Extracting structured recommendations...")
         raw_markdown = _build_recommendation_markdown(segments)
-        recommendations: List[Recommendation] = await extract_recommendations_with_mistral(
-            doc_id=doc_id,
-            bank=bank,
-            raw_markdown=raw_markdown,
-        )
+        try:
+            recommendations: List[Recommendation] = await extract_recommendations_with_mistral(
+                doc_id=doc_id,
+                bank=bank,
+                raw_markdown=raw_markdown,
+            )
+        except Exception as recommendation_error:
+            logger.warning(
+                "Recommendation extraction failed for %s: %s",
+                doc_id,
+                recommendation_error,
+                exc_info=True,
+            )
+            recommendations = []
+            result["warnings"].append(RECOMMENDATION_EXTRACTION_WARNING)
         result["recommendations"] = len(recommendations)
         
         # 6. Store recommendations

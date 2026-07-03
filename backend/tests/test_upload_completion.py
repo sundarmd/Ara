@@ -98,6 +98,39 @@ class UploadCompletionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("doc_id", complete)
         self.assertEqual(events[-1]["step"], "done")
 
+    async def test_successful_upload_complete_event_includes_warnings(self):
+        upload = FakeUploadFile("report.pdf", b"%PDF-1.4\nreport")
+        doc_store = Mock()
+        doc_store.check_duplicate.return_value = None
+        doc_store.get_document_by_filename.return_value = None
+
+        ingest_pdf = AsyncMock(return_value={
+            "status": "success",
+            "bank": "GS",
+            "asset_class": "rates",
+            "report_date": "2026-07-02",
+            "title": "Rates Outlook",
+            "chunks": 7,
+            "recommendations": 0,
+            "warnings": ["Recommendation extraction failed; document search is still available."],
+        })
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with (
+                override_setting("DATA_DIR", tmpdir),
+                override_setting("REPORTS_DIR", tmpdir),
+                patch.object(main, "get_document_store", return_value=doc_store),
+                patch.object(main, "ingest_pdf", new=ingest_pdf),
+            ):
+                response = await main.upload_files(files=[upload], file=None)
+                events = await collect_events(response)
+
+        complete = [event for event in events if event.get("step") == "complete"][0]
+        self.assertEqual(
+            complete["warnings"],
+            ["Recommendation extraction failed; document search is still available."],
+        )
+
     async def test_upload_error_event_includes_type_and_code(self):
         upload = FakeUploadFile("report.pdf", b"%PDF-1.4\nreport")
         doc_store = Mock()

@@ -395,6 +395,7 @@ async def upload_files(
                     document_title = result.get("title") or filename
                     chunk_count = result.get("chunks", 0)
                     recommendation_count = result.get("recommendations", 0)
+                    warnings = result.get("warnings") or []
 
                     # Record in document store
                     doc_store.add_document(
@@ -419,6 +420,7 @@ async def upload_files(
                         "report_date": document_report_date,
                         "chunk_count": chunk_count,
                         "recommendation_count": recommendation_count,
+                        "warnings": warnings,
                     }
                     yield f"data: {json.dumps(complete_event)}\n\n"
                 elif result.get("status") == "error":
