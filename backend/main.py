@@ -339,6 +339,14 @@ async def upload_files(
                     )
                 except Exception as e:
                     logger.warning(f"Cleanup failed for {filename}: {e}")
+                    _cleanup_spooled_file(stored_path)
+                    error_event = _build_upload_error_event(
+                        filename,
+                        "Could not replace existing document because cleanup of the previous version failed.",
+                        "replacement_cleanup_error",
+                    )
+                    yield f"data: {json.dumps(error_event)}\n\n"
+                    continue
             
             try:
                 # --- Queue-based Streaming Implementation ---

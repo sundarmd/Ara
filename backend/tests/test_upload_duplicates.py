@@ -169,3 +169,47 @@ class UploadDuplicateTests(unittest.IsolatedAsyncioTestCase):
         add_kwargs = doc_store.add_document.call_args.kwargs
         self.assertEqual(add_kwargs["file_hash"], new_hash)
         self.assertEqual(add_kwargs["filename"], "report.pdf")
+
+    async def test_upload_replacement_cleanup_failure_aborts_new_ingestion(self):
+        old_hash = "old-hash"
+        content = b"%PDF-1.4\nnew content"
+        new_hash = hashlib.sha256(content).hexdigest()
+        upload = FakeUploadFile("report.pdf", content)
+        existing_doc = make_document_record("old-doc", old_hash, "report.pdf")
+        doc_store = Mock()
+        doc_store.check_duplicate.return_value = None
+        doc_store.get_document_by_filename.return_value = existing_doc
+        cleanup_failure = RuntimeError("vector cleanup failed")
+        ingest_pdf = AsyncMock(return_value={
+            "status": "success",
+            "bank": "MS",
+            "asset_class": "credit",
+            "report_date": "2026-07-02",
+            "title": "New Report",
+            "chunks": 4,
+        })
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with (
+                override_setting("DATA_DIR", tmpdir),
+                override_setting("REPORTS_DIR", tmpdir),
+                patch.object(main, "get_document_store", return_value=doc_store),
+                patch.object(main, "_delete_document_artifacts", side_effect=cleanup_failure) as cleanup,
+                patch.object(main, "ingest_pdf", new=ingest_pdf),
+            ):
+                response = await main.upload_files(files=[upload], file=None)
+                events = await collect_events(response)
+                spooled_pdfs = list(Path(tmpdir).glob("*.pdf"))
+
+        error_events = [event for event in events if event.get("step") == "error"]
+        self.assertEqual(events[0]["step"], "preprocessing")
+        self.assertEqual(len(error_events), 1)
+        self.assertEqual(error_events[0]["code"], "replacement_cleanup_error")
+        self.assertIn("Could not replace existing document", error_events[0]["detail"])
+        self.assertEqual(events[-1]["step"], "done")
+        self.assertEqual(spooled_pdfs, [])
+        doc_store.check_duplicate.assert_called_once_with(new_hash)
+        doc_store.get_document_by_filename.assert_called_once_with("report.pdf")
+        cleanup.assert_called_once_with(existing_doc, doc_store=doc_store)
+        ingest_pdf.assert_not_awaited()
+        doc_store.add_document.assert_not_called()
