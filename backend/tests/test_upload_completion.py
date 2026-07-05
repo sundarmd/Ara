@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from contextlib import contextmanager
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import main
@@ -159,3 +160,39 @@ class UploadCompletionTests(unittest.IsolatedAsyncioTestCase):
             error_event["detail"],
             "Mistral OCR rate limit reached. Wait a moment and try again.",
         )
+
+    async def test_non_success_ingestion_statuses_cleanup_and_emit_error(self):
+        cases = {
+            "empty": ("ingestion_empty", "No content found in PDF"),
+            "no_chunks": ("ingestion_no_chunks", "Could not create chunks"),
+        }
+
+        for status, (expected_code, expected_detail) in cases.items():
+            with self.subTest(status=status):
+                upload = FakeUploadFile(f"{status}.pdf", b"%PDF-1.4\nreport")
+                doc_store = Mock()
+                doc_store.check_duplicate.return_value = None
+                doc_store.get_document_by_filename.return_value = None
+                ingest_pdf = AsyncMock(return_value={"status": status})
+
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    with (
+                        override_setting("DATA_DIR", tmpdir),
+                        override_setting("REPORTS_DIR", tmpdir),
+                        patch.object(main, "get_document_store", return_value=doc_store),
+                        patch.object(main, "ingest_pdf", new=ingest_pdf),
+                    ):
+                        response = await main.upload_files(files=[upload], file=None)
+                        events = await collect_events(response)
+                        spooled_pdfs = list(Path(tmpdir).glob("*.pdf"))
+
+                error_events = [event for event in events if event.get("step") == "error"]
+                complete_events = [event for event in events if event.get("step") == "complete"]
+                self.assertEqual(len(error_events), 1)
+                self.assertEqual(error_events[0]["code"], expected_code)
+                self.assertEqual(error_events[0]["detail"], expected_detail)
+                self.assertEqual(complete_events, [])
+                self.assertEqual(events[-1]["step"], "done")
+                self.assertEqual(spooled_pdfs, [])
+                ingest_pdf.assert_awaited_once()
+                doc_store.add_document.assert_not_called()

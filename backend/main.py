@@ -117,6 +117,29 @@ def _build_upload_error_event(filename: str, detail: str, code: str = "upload_er
     }
 
 
+INGESTION_FAILURE_DETAILS = {
+    "empty": "No content found in PDF",
+    "no_chunks": "Could not create chunks",
+}
+
+INGESTION_FAILURE_CODES = {
+    "error": "ingestion_error",
+    "empty": "ingestion_empty",
+    "no_chunks": "ingestion_no_chunks",
+}
+
+
+def _build_ingestion_failure_event(filename: str, result: dict) -> dict:
+    status = result.get("status") or "unknown"
+    detail = (
+        result.get("error")
+        or INGESTION_FAILURE_DETAILS.get(status)
+        or f"Ingestion did not complete successfully: {status}"
+    )
+    code = INGESTION_FAILURE_CODES.get(status, "ingestion_error")
+    return _build_upload_error_event(filename, detail, code)
+
+
 def _delete_document_artifacts(
     doc: Any,
     *,
@@ -431,8 +454,10 @@ async def upload_files(
                         "warnings": warnings,
                     }
                     yield f"data: {json.dumps(complete_event)}\n\n"
-                elif result.get("status") == "error":
-                     yield f"data: {json.dumps(_build_upload_error_event(filename, result.get('error', 'Unknown Error'), 'ingestion_error'))}\n\n"
+                else:
+                    _cleanup_spooled_file(stored_path)
+                    error_event = _build_ingestion_failure_event(filename, result)
+                    yield f"data: {json.dumps(error_event)}\n\n"
 
             except Exception as e:
                 logger.error(f"Error processing {filename}: {e}")
