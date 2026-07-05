@@ -39,7 +39,10 @@ STRUCTURED_RECOMMENDATION_QUERY_MARKERS = (
     "underweight",
     "investment view",
     "investment views",
-    "structured",
+    "structured recommendation",
+    "structured recommendations",
+    "structured view",
+    "structured views",
     "calls",
 )
 

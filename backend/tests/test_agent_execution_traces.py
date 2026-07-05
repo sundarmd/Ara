@@ -43,6 +43,7 @@ class RecommendationIntentTests(unittest.TestCase):
             "What are the calls across asset classes?",
             "Show investment views from the extracted reports.",
             "Which assets are overweight or underweight?",
+            "Show the structured view extracted from the research.",
         ]
 
         for query in queries:
@@ -257,6 +258,39 @@ class AgentExecutionTraceTests(unittest.IsolatedAsyncioTestCase):
 
         request = ChatRequest(
             messages=[{"role": "user", "content": "What is the current view on duration?"}],
+        )
+
+        with (
+            patch("langchain.agents.create_tool_calling_agent", return_value=Mock()),
+            patch("langchain.agents.AgentExecutor", FakeAgentExecutor),
+            patch("services.recommendations.get_recommendation_store", return_value=recommendation_store),
+        ):
+            events = [parse_sse(event) async for event in orchestrator.process_query(request)]
+
+        complete_event = [event for event in events if event["type"] == "complete"][0]
+
+        recommendation_store.get_by_filters.assert_not_called()
+        self.assertEqual(complete_event["recommendations"], [])
+
+    async def test_orchestrator_does_not_load_recommendations_for_generic_structured_queries(self):
+        class FakeAgentExecutor:
+            def __init__(self, agent, tools, verbose):
+                pass
+
+            async def astream_events(self, payload, version):
+                yield {
+                    "event": "on_chain_end",
+                    "name": "AgentExecutor",
+                    "data": {"output": {"output": "Here is a structured summary."}},
+                }
+
+        orchestrator = object.__new__(AgentOrchestrator)
+        orchestrator.llm = Mock()
+        recommendation_store = Mock()
+        recommendation_store.get_by_filters = AsyncMock(return_value=[])
+
+        request = ChatRequest(
+            messages=[{"role": "user", "content": "Give me a structured summary of the report metadata."}],
         )
 
         with (
