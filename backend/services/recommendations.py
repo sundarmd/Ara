@@ -76,6 +76,22 @@ RECOMMENDATION_DB_COLUMN_TYPES: Dict[str, str] = {
     "is_active": "INTEGER DEFAULT 1",
     "outcome": "TEXT",
 }
+ANALYST_DB_COLUMNS: Tuple[str, ...] = (
+    "id",
+    "name",
+    "team",
+    "bio",
+    "coverage_sector",
+    "accuracy_score",
+)
+ANALYST_DB_COLUMN_TYPES: Dict[str, str] = {
+    "id": "TEXT",
+    "name": "TEXT",
+    "team": "TEXT",
+    "bio": "TEXT",
+    "coverage_sector": "TEXT",
+    "accuracy_score": "REAL",
+}
 
 
 def _recommendation_to_db_values(recommendation: Recommendation) -> Tuple[Any, ...]:
@@ -198,41 +214,54 @@ class RecommendationStore:
                 logger.info("Creating fresh recommendations database schema")
 
                 # 1. Recommendations Table
-                conn.execute("""
-                    CREATE TABLE recommendations (
-                        id TEXT PRIMARY KEY,
-                        doc_id TEXT,
-                        source_type TEXT,
-                        bank TEXT,
-                        asset_class TEXT,
-                        sub_asset TEXT,
-                        stance TEXT,
-                        confidence TEXT,
-                        horizon TEXT,
-                        rationale TEXT,
-                        page INTEGER,
-                        section TEXT,
-                        date TEXT,
-                        analyst_id TEXT,
-                        is_active INTEGER DEFAULT 1,
-                        outcome TEXT
-                    )
-                """)
+                self._create_recommendations_table(conn)
 
-                # 2. Analysts Table
-                conn.execute("""
-                    CREATE TABLE analysts (
-                        id TEXT PRIMARY KEY,
-                        name TEXT,
-                        team TEXT,
-                        bio TEXT,
-                        coverage_sector TEXT,
-                        accuracy_score REAL
-                    )
-                """)
+            self._ensure_analysts_table(conn)
 
-                conn.commit()
-                logger.info("Database schema created successfully")
+            conn.commit()
+            logger.info("Database schema created successfully")
+
+    def _create_recommendations_table(self, conn: sqlite3.Connection) -> None:
+        conn.execute("""
+            CREATE TABLE recommendations (
+                id TEXT PRIMARY KEY,
+                doc_id TEXT,
+                source_type TEXT,
+                bank TEXT,
+                asset_class TEXT,
+                sub_asset TEXT,
+                stance TEXT,
+                confidence TEXT,
+                horizon TEXT,
+                rationale TEXT,
+                page INTEGER,
+                section TEXT,
+                date TEXT,
+                analyst_id TEXT,
+                is_active INTEGER DEFAULT 1,
+                outcome TEXT
+            )
+        """)
+
+    def _ensure_analysts_table(self, conn: sqlite3.Connection) -> None:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS analysts (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                team TEXT,
+                bio TEXT,
+                coverage_sector TEXT,
+                accuracy_score REAL
+            )
+        """)
+
+        cursor = conn.execute("PRAGMA table_info(analysts)")
+        columns = {row[1] for row in cursor.fetchall()}
+        for column_name in ANALYST_DB_COLUMNS:
+            if column_name not in columns:
+                column_type = ANALYST_DB_COLUMN_TYPES[column_name]
+                conn.execute(f"ALTER TABLE analysts ADD COLUMN {column_name} {column_type}")
+                columns.add(column_name)
     
     # --- Analyst Methods ---
     

@@ -12,6 +12,18 @@ from dataclasses import dataclass
 
 from config.settings import settings
 
+DOCUMENT_DB_COLUMNS = {
+    "doc_id": "TEXT",
+    "file_hash": "TEXT",
+    "filename": "TEXT",
+    "bank": "TEXT",
+    "asset_class": "TEXT",
+    "report_date": "TEXT",
+    "title": "TEXT",
+    "indexed_at": "TEXT",
+    "chunk_count": "INTEGER DEFAULT 0",
+}
+
 
 @dataclass
 class DocumentRecord:
@@ -50,7 +62,7 @@ class DocumentStore:
         shutil.copy2(legacy_db_path, self.db_path)
     
     def _init_db(self):
-        """Initialize the database schema."""
+        """Initialize the database schema with additive migration support."""
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         
         with sqlite3.connect(self.db_path) as conn:
@@ -67,6 +79,13 @@ class DocumentStore:
                     chunk_count INTEGER DEFAULT 0
                 )
             """)
+            cursor = conn.execute("PRAGMA table_info(documents)")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+            for column_name, column_type in DOCUMENT_DB_COLUMNS.items():
+                if column_name not in existing_columns:
+                    conn.execute(
+                        f"ALTER TABLE documents ADD COLUMN {column_name} {column_type}"
+                    )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_file_hash ON documents(file_hash)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_bank ON documents(bank)")
             conn.commit()

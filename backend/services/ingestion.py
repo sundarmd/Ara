@@ -10,6 +10,7 @@ This module owns all indexing logic:
 """
 import logging
 import os
+import re
 import shutil
 from typing import Optional, List, Callable, Awaitable
 
@@ -32,6 +33,50 @@ ProgressCallback = Callable[[str, int, str], Awaitable[None]]
 RECOMMENDATION_EXTRACTION_WARNING = (
     "Recommendation extraction failed; document search is still available."
 )
+UNKNOWN_ASSET_CLASS_VALUES = {"", "unknown", "other", "n/a", "na", "none"}
+UNKNOWN_BANK_VALUES = {"", "unknown", "other", "n/a", "na", "none"}
+
+
+def _infer_asset_class_from_label(label: Optional[str]) -> Optional[str]:
+    if not label:
+        return None
+
+    normalized = re.sub(r"[^a-z0-9]+", " ", label.lower())
+    patterns = (
+        ("multi_asset", ("multi asset", "asset allocation", "cross asset", "portfolio")),
+        ("fixed_income", ("fixed income", "bond", "bonds", "treasury", "treasuries", "rates")),
+        ("equity", ("equity", "equities", "stock", "stocks")),
+        ("credit", ("credit", "high yield", "investment grade")),
+        ("fx", ("foreign exchange", "currency", "currencies", "fx")),
+        ("funds", ("mutual fund", "mutual funds", "etf", "etfs", "fund merger", "funds")),
+    )
+
+    for asset_class, markers in patterns:
+        if any(marker in normalized for marker in markers):
+            return asset_class
+    return None
+
+
+def _apply_asset_class_fallback(
+    asset_class: Optional[str],
+    *,
+    title: Optional[str],
+    filename: Optional[str],
+) -> str:
+    normalized_asset_class = (asset_class or "unknown").strip().lower().replace("-", "_")
+    if normalized_asset_class not in UNKNOWN_ASSET_CLASS_VALUES:
+        return normalized_asset_class
+
+    for candidate in (title, filename):
+        inferred = _infer_asset_class_from_label(candidate)
+        if inferred:
+            return inferred
+
+    return "unknown"
+
+
+def _should_extract_structured_recommendations(bank: Optional[str]) -> bool:
+    return (bank or "").strip().lower() not in UNKNOWN_BANK_VALUES
 
 
 def _build_recommendation_markdown(segments: List[Segment]) -> str:
@@ -214,6 +259,12 @@ async def ingest_pdf(
                 bank = bank or "UNKNOWN"
                 asset_class = asset_class or "unknown"
                 report_date = report_date or "UNKNOWN"
+
+        asset_class = _apply_asset_class_fallback(
+            asset_class,
+            title=title,
+            filename=os.path.basename(file_path) if file_path else None,
+        )
                 
         # Update result with final metadata
         result["bank"] = bank
@@ -252,23 +303,31 @@ async def ingest_pdf(
         
         # 5. Extract structured recommendations (75-95%)
         ingestion_provider_name = "Mistral recommendations"
-        await emit("recommendations", 78, "Extracting structured recommendations...")
-        raw_markdown = _build_recommendation_markdown(segments)
-        try:
-            recommendations: List[Recommendation] = await extract_recommendations_with_mistral(
-                doc_id=doc_id,
-                bank=bank,
-                raw_markdown=raw_markdown,
+        recommendations: List[Recommendation] = []
+        if _should_extract_structured_recommendations(bank):
+            await emit("recommendations", 78, "Extracting structured recommendations...")
+            raw_markdown = _build_recommendation_markdown(segments)
+            try:
+                recommendations = await extract_recommendations_with_mistral(
+                    doc_id=doc_id,
+                    bank=bank,
+                    raw_markdown=raw_markdown,
+                )
+            except Exception as recommendation_error:
+                logger.warning(
+                    "Recommendation extraction failed for %s: %s",
+                    doc_id,
+                    recommendation_error,
+                    exc_info=True,
+                )
+                recommendations = []
+                result["warnings"].append(RECOMMENDATION_EXTRACTION_WARNING)
+        else:
+            await emit(
+                "recommendations",
+                78,
+                "Skipping structured recommendations for unrecognized source.",
             )
-        except Exception as recommendation_error:
-            logger.warning(
-                "Recommendation extraction failed for %s: %s",
-                doc_id,
-                recommendation_error,
-                exc_info=True,
-            )
-            recommendations = []
-            result["warnings"].append(RECOMMENDATION_EXTRACTION_WARNING)
         result["recommendations"] = len(recommendations)
         
         # 6. Store recommendations

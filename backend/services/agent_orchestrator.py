@@ -9,13 +9,20 @@ This module handles:
 import logging
 import json
 import re
+from datetime import date
 from typing import Optional, Dict, Any, AsyncGenerator, List, Tuple
 
 from langchain_openai import ChatOpenAI
 
 from config.settings import settings
 from services.errors import format_chat_error
-from services.tools import AVAILABLE_TOOLS, reset_search_filter_scope, set_search_filter_scope
+from services.tools import (
+    AVAILABLE_TOOLS,
+    reset_search_filter_scope,
+    search_knowledge_base,
+    set_search_filter_scope,
+    web_search,
+)
 from models.schemas import ChatMessage, ChatRequest, StreamEventType
 
 logger = logging.getLogger(__name__)
@@ -45,6 +52,33 @@ STRUCTURED_RECOMMENDATION_QUERY_MARKERS = (
     "structured views",
     "calls",
 )
+WEB_QUERY_MARKERS = (
+    "latest",
+    "current",
+    "today",
+    "live",
+    "web",
+    "news",
+    "headline",
+    "headlines",
+    "market headlines",
+)
+CITED_FALLBACK_QUERY_MARKERS = (
+    "cite",
+    "citation",
+    "citations",
+    "source",
+    "sources",
+    "page",
+    "pages",
+    "uploaded",
+    "document",
+    "documents",
+    "pdf",
+    "pdfs",
+    "report",
+    "reports",
+)
 
 
 def _has_query_marker(query: str, marker: str) -> bool:
@@ -62,6 +96,29 @@ def _wants_structured_recommendations(query: str) -> bool:
     )
 
 
+def _wants_web_search(query: str) -> bool:
+    normalized = query.lower()
+    return any(_has_query_marker(normalized, marker) for marker in WEB_QUERY_MARKERS)
+
+
+def _needs_cited_fallback(query: str) -> bool:
+    normalized = query.lower()
+    return _wants_web_search(query) or any(
+        _has_query_marker(normalized, marker)
+        for marker in CITED_FALLBACK_QUERY_MARKERS
+    )
+
+
+def _looks_like_rate_limit_error(error: Exception) -> bool:
+    response = getattr(error, "response", None)
+    status_code = getattr(response, "status_code", None)
+    if status_code == 429:
+        return True
+
+    message = str(error).lower()
+    return "429" in message or "rate limit" in message or "too many requests" in message
+
+
 def _build_chat_history(messages: List[ChatMessage]) -> List[Tuple[str, str]]:
     """Convert prior chat turns into LangChain's prompt placeholder tuple format."""
     history = []
@@ -71,6 +128,21 @@ def _build_chat_history(messages: List[ChatMessage]) -> List[Tuple[str, str]]:
         elif message.role == "assistant":
             history.append(("ai", message.content))
     return history
+
+
+def _today_iso() -> str:
+    return date.today().isoformat()
+
+
+def _build_system_prompt(base_prompt: str) -> str:
+    today_iso = _today_iso()
+    return (
+        f"{base_prompt.rstrip()}\n\n"
+        "# CURRENT DATE\n"
+        f"Today is {today_iso}. For queries that mention today, latest, current, "
+        "recent, live, or breaking market context, use web_search and keep the "
+        "answer scoped to sources returned for that date-aware search."
+    )
 
 
 class AgentOrchestrator:
@@ -90,6 +162,7 @@ class AgentOrchestrator:
             base_url="https://api.mistral.ai/v1",
             model=self.model_name,
             temperature=0,
+            max_retries=settings.CHAT_MAX_RETRIES,
             stop=[
                 "\nSources:", 
                 "\nReferences:", 
@@ -106,6 +179,7 @@ class AgentOrchestrator:
         Yields SSE events: thought, token, complete, error.
         """
         search_filter_token = None
+        input_text = request.messages[-1].content if request.messages else ""
         
         try:
             from langchain.agents import AgentExecutor, create_tool_calling_agent
@@ -113,7 +187,7 @@ class AgentOrchestrator:
             from services.prompt_loader import load_prompt
             
             # Load system prompt from markdown file
-            system_prompt = load_prompt("agent_system")
+            system_prompt = _build_system_prompt(load_prompt("agent_system"))
             
             # Define prompt for tool-calling execution.
             prompt = ChatPromptTemplate.from_messages([
@@ -129,7 +203,6 @@ class AgentOrchestrator:
 
             # Execute with streaming
             history = _build_chat_history(request.messages)
-            input_text = request.messages[-1].content
             
             # Streaming state
             collected_sources = []
@@ -207,6 +280,17 @@ class AgentOrchestrator:
                             request=request,
                             query=input_text,
                         )
+                        if not collected_sources and _needs_cited_fallback(input_text):
+                            fallback_sources = await self._load_fallback_sources(
+                                request=request,
+                                query=input_text,
+                            )
+                            if fallback_sources:
+                                collected_sources.extend(fallback_sources)
+                                clean_answer = self._ensure_answer_has_citation(
+                                    clean_answer,
+                                    collected_sources,
+                                )
 
                         yield self._format_event(StreamEventType.COMPLETE, {
                             "answer": clean_answer,
@@ -215,8 +299,28 @@ class AgentOrchestrator:
                         })
             
         except Exception as e:
-            error_message = format_chat_error(e)
             logger.error(f"LangChain Orchestrator error: {e}", exc_info=True)
+            if _looks_like_rate_limit_error(e) and _needs_cited_fallback(input_text):
+                fallback_sources = await self._load_fallback_sources(
+                    request=request,
+                    query=input_text,
+                )
+                if fallback_sources:
+                    yield self._format_event(StreamEventType.THOUGHT, {
+                        "phase": "generating",
+                        "content": "Using cited fallback after provider rate limit."
+                    })
+                    yield self._format_event(StreamEventType.COMPLETE, {
+                        "answer": self._build_rate_limit_fallback_answer(fallback_sources),
+                        "sources": fallback_sources,
+                        "recommendations": await self._load_structured_recommendations(
+                            request=request,
+                            query=input_text,
+                        ),
+                    })
+                    return
+
+            error_message = format_chat_error(e)
             yield self._format_event(StreamEventType.ERROR, {
                 "message": error_message,
                 "code": "chat_error",
@@ -299,6 +403,67 @@ class AgentOrchestrator:
             recommendation.model_dump(exclude_none=True)
             for recommendation in recommendations[:MAX_CHAT_RECOMMENDATIONS]
         ]
+
+    async def _load_fallback_sources(
+        self,
+        request: ChatRequest,
+        query: str,
+    ) -> list[Dict[str, Any]]:
+        try:
+            if _wants_web_search(query):
+                output = await web_search.ainvoke({"query": query})
+            else:
+                output = await search_knowledge_base.ainvoke({
+                    "query": query,
+                    "bank": request.bank,
+                    "asset_class": request.asset_class,
+                })
+        except Exception:
+            logger.warning("Fallback source retrieval failed", exc_info=True)
+            return []
+
+        sources, tool_error = self._parse_tool_output(output)
+        if tool_error:
+            logger.warning("Fallback source retrieval returned error: %s", tool_error)
+        return sources
+
+    def _ensure_answer_has_citation(
+        self,
+        answer: str,
+        sources: list[Dict[str, Any]],
+    ) -> str:
+        if re.search(r"\[\d+(?:\s*,\s*\d+)*\]", answer):
+            return answer
+
+        citation_ids = [
+            source.get("citation_id")
+            for source in sources
+            if isinstance(source.get("citation_id"), int)
+        ]
+        if not citation_ids:
+            return answer
+
+        citations = " ".join(f"[{citation_id}]" for citation_id in citation_ids[:3])
+        return f"{answer.rstrip()}\n\nRelevant retrieved evidence: {citations}"
+
+    def _build_rate_limit_fallback_answer(self, sources: list[Dict[str, Any]]) -> str:
+        lines = [
+            "I hit a provider rate limit during synthesis, so I am returning the most relevant cited evidence directly."
+        ]
+
+        for source in sources[:5]:
+            citation_id = source.get("citation_id")
+            metadata = source.get("metadata") or {}
+            title = metadata.get("title") or metadata.get("bank") or "Source"
+            page = metadata.get("page_start")
+            text = " ".join(str(source.get("text") or "").split())
+            if len(text) > 260:
+                text = f"{text[:257]}..."
+
+            location = f", page {page}" if page else ""
+            lines.append(f"- **{title}{location}:** {text} [{citation_id}]")
+
+        return "\n".join(lines)
 
     def _build_tool_start_trace(self, tool_name: str, tool_input: Dict[str, Any]) -> str:
         display_name = TOOL_DISPLAY_NAMES.get(tool_name, tool_name)

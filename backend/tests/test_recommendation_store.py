@@ -54,3 +54,43 @@ class RecommendationStoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("time_horizon", columns)
         self.assertEqual(deleted_count, 1)
         self.assertEqual([recommendation.id for recommendation in remaining], ["rec-2"])
+
+    async def test_init_db_creates_analysts_table_when_recommendations_table_exists(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "recommendations.db")
+            with sqlite3.connect(db_path) as conn:
+                conn.execute("""
+                    CREATE TABLE recommendations (
+                        id TEXT PRIMARY KEY,
+                        doc_id TEXT,
+                        source_type TEXT,
+                        bank TEXT,
+                        asset_class TEXT,
+                        sub_asset TEXT,
+                        stance TEXT,
+                        horizon TEXT,
+                        rationale TEXT,
+                        date TEXT
+                    )
+                """)
+                conn.commit()
+
+            store = RecommendationStore(db_path=db_path)
+            await store.save_analysts([])
+            with sqlite3.connect(db_path) as conn:
+                analyst_columns = {
+                    row[1]
+                    for row in conn.execute("PRAGMA table_info(analysts)")
+                }
+                recommendation_columns = {
+                    row[1]
+                    for row in conn.execute("PRAGMA table_info(recommendations)")
+                }
+
+        self.assertEqual(
+            analyst_columns,
+            {"id", "name", "team", "bio", "coverage_sector", "accuracy_score"},
+        )
+        self.assertIn("page", recommendation_columns)
+        self.assertIn("section", recommendation_columns)
+        self.assertIn("confidence", recommendation_columns)

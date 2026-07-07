@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 
 from models.schemas import Chunk, Segment
 from services import ingestion
-from services.metadata_extractor import extract_metadata_from_content
+from services.metadata_extractor import DocumentMetadata, extract_metadata_from_content
 
 
 class MetadataLLMClient:
@@ -20,6 +20,31 @@ class MetadataLLMClient:
 
 
 class MetadataFallbackTests(unittest.IsolatedAsyncioTestCase):
+    def test_asset_class_fallback_uses_title_when_metadata_is_unknown(self):
+        self.assertEqual(
+            ingestion._apply_asset_class_fallback(
+                "unknown",
+                title="250901 Citi multi-asset.pdf",
+                filename="stored-uuid.pdf",
+            ),
+            "multi_asset",
+        )
+
+    def test_asset_class_fallback_preserves_unknown_without_title_signal(self):
+        self.assertEqual(
+            ingestion._apply_asset_class_fallback(
+                "unknown",
+                title="Unbranded research report.pdf",
+                filename="stored-uuid.pdf",
+            ),
+            "unknown",
+        )
+
+    def test_structured_recommendation_extraction_skips_unknown_sources(self):
+        self.assertFalse(ingestion._should_extract_structured_recommendations("UNKNOWN"))
+        self.assertFalse(ingestion._should_extract_structured_recommendations(""))
+        self.assertTrue(ingestion._should_extract_structured_recommendations("GS"))
+
     async def test_metadata_extractor_preserves_unknown_report_date(self):
         text = "Goldman Sachs multi-asset strategy report. " * 10
 
@@ -105,4 +130,72 @@ class MetadataFallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             seen_metadata,
             [{"bank": "UNKNOWN", "asset_class": "unknown", "report_date": "UNKNOWN"}],
+        )
+
+    async def test_ingestion_uses_title_asset_class_fallback_for_unknown_metadata(self):
+        segments = [
+            Segment(
+                doc_id="doc-1",
+                page=1,
+                segment_type="body",
+                text="Citi global market strategy. " * 10,
+            )
+        ]
+        seen_metadata = []
+
+        def fake_build_chunks(doc_id, bank, asset_class, report_date, segments):
+            seen_metadata.append(
+                {
+                    "bank": bank,
+                    "asset_class": asset_class,
+                    "report_date": report_date,
+                }
+            )
+            return [
+                Chunk(
+                    id="chunk-1",
+                    doc_id=doc_id,
+                    bank=bank,
+                    asset_class=asset_class,
+                    report_date=report_date,
+                    page_start=1,
+                    page_end=1,
+                    section=None,
+                    segment_types=["body"],
+                    text=segments[0].text,
+                )
+            ]
+
+        vector_store = AsyncMock()
+        vector_store.index_chunks = AsyncMock()
+
+        with (
+            patch.object(ingestion, "parse_pdf_to_segments", new=AsyncMock(return_value=segments)),
+            patch.object(
+                ingestion,
+                "extract_metadata_from_content",
+                new=AsyncMock(return_value=DocumentMetadata(
+                    bank="CITI",
+                    asset_class="unknown",
+                    report_date="2025-08-21",
+                    title=None,
+                )),
+            ),
+            patch.object(ingestion, "build_chunks", side_effect=fake_build_chunks),
+            patch.object(ingestion, "get_vector_store", return_value=vector_store),
+            patch.object(ingestion, "extract_recommendations_with_mistral", new=AsyncMock(return_value=[])),
+        ):
+            result = await ingestion.ingest_pdf(
+                doc_id="doc-1",
+                file_path="/tmp/stored-uuid.pdf",
+                title="250901 Citi multi-asset.pdf",
+            )
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["bank"], "CITI")
+        self.assertEqual(result["asset_class"], "multi_asset")
+        self.assertEqual(result["report_date"], "2025-08-21")
+        self.assertEqual(
+            seen_metadata,
+            [{"bank": "CITI", "asset_class": "multi_asset", "report_date": "2025-08-21"}],
         )

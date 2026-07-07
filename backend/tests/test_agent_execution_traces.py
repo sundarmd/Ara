@@ -8,6 +8,7 @@ from models.schemas import ChatRequest, Recommendation
 from services.agent_orchestrator import (
     AgentOrchestrator,
     _build_chat_history,
+    _build_system_prompt,
     _wants_structured_recommendations,
 )
 
@@ -34,6 +35,13 @@ class AgentChatHistoryTests(unittest.TestCase):
                 ("ai", "First answer"),
             ],
         )
+
+    def test_build_system_prompt_includes_current_date_guidance(self):
+        with patch("services.agent_orchestrator._today_iso", return_value="2026-07-07"):
+            prompt = _build_system_prompt("Base prompt.")
+
+        self.assertIn("Today is 2026-07-07", prompt)
+        self.assertIn("use web_search", prompt)
 
 
 class RecommendationIntentTests(unittest.TestCase):
@@ -174,6 +182,96 @@ class AgentExecutionTraceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(error_trace["details"][0]["source_count"], 0)
         self.assertEqual(complete_event["sources"], [])
 
+    async def test_orchestrator_adds_fallback_sources_when_answer_has_none(self):
+        class FakeAgentExecutor:
+            def __init__(self, agent, tools, verbose):
+                pass
+
+            async def astream_events(self, payload, version):
+                yield {
+                    "event": "on_chain_end",
+                    "name": "AgentExecutor",
+                    "data": {"output": {"output": "Investment themes are broad."}},
+                }
+
+        orchestrator = object.__new__(AgentOrchestrator)
+        orchestrator.llm = Mock()
+
+        fallback_output = json.dumps({
+            "ok": True,
+            "sources": [
+                {
+                    "citation_id": 1,
+                    "text": "Investment advice should consider objectives and risk tolerance.",
+                    "metadata": {"title": "SEC Exam Priorities", "page_start": 9},
+                }
+            ],
+        })
+        fallback_tool = Mock()
+        fallback_tool.ainvoke = AsyncMock(return_value=fallback_output)
+
+        request = ChatRequest(
+            messages=[{"role": "user", "content": "Summarize the uploaded reports and cite pages."}],
+        )
+
+        with (
+            patch("langchain.agents.create_tool_calling_agent", return_value=Mock()),
+            patch("langchain.agents.AgentExecutor", FakeAgentExecutor),
+            patch("services.agent_orchestrator.search_knowledge_base", fallback_tool),
+        ):
+            events = [parse_sse(event) async for event in orchestrator.process_query(request)]
+
+        complete_event = [event for event in events if event["type"] == "complete"][0]
+        self.assertEqual(len(complete_event["sources"]), 1)
+        self.assertIn("[1]", complete_event["answer"])
+        fallback_tool.ainvoke.assert_awaited_once()
+
+    async def test_orchestrator_returns_cited_fallback_on_rate_limit(self):
+        class RateLimitError(Exception):
+            pass
+
+        class FakeAgentExecutor:
+            def __init__(self, agent, tools, verbose):
+                pass
+
+            async def astream_events(self, payload, version):
+                raise RateLimitError("429 rate limit exceeded")
+                yield
+
+        orchestrator = object.__new__(AgentOrchestrator)
+        orchestrator.llm = Mock()
+
+        fallback_output = json.dumps({
+            "ok": True,
+            "sources": [
+                {
+                    "citation_id": 1,
+                    "text": "Fund mergers can affect investor fees.",
+                    "metadata": {"title": "When Funds Merge", "page_start": 1},
+                }
+            ],
+        })
+        fallback_tool = Mock()
+        fallback_tool.ainvoke = AsyncMock(return_value=fallback_output)
+
+        request = ChatRequest(
+            messages=[{"role": "user", "content": "What do the uploaded PDFs say about fund fees?"}],
+        )
+
+        with (
+            patch("langchain.agents.create_tool_calling_agent", return_value=Mock()),
+            patch("langchain.agents.AgentExecutor", FakeAgentExecutor),
+            patch("services.agent_orchestrator.search_knowledge_base", fallback_tool),
+        ):
+            events = [parse_sse(event) async for event in orchestrator.process_query(request)]
+
+        complete_event = [event for event in events if event["type"] == "complete"][0]
+        error_events = [event for event in events if event["type"] == "error"]
+        self.assertEqual(error_events, [])
+        self.assertEqual(len(complete_event["sources"]), 1)
+        self.assertIn("provider rate limit", complete_event["answer"])
+        self.assertIn("[1]", complete_event["answer"])
+
     async def test_orchestrator_includes_stored_recommendations_for_recommendation_queries(self):
         class FakeAgentExecutor:
             def __init__(self, agent, tools, verbose):
@@ -220,6 +318,7 @@ class AgentExecutionTraceTests(unittest.IsolatedAsyncioTestCase):
             patch("langchain.agents.create_tool_calling_agent", return_value=Mock()),
             patch("langchain.agents.AgentExecutor", FakeAgentExecutor),
             patch("services.recommendations.get_recommendation_store", return_value=recommendation_store),
+            patch.object(orchestrator, "_load_fallback_sources", new=AsyncMock(return_value=[])),
         ):
             events = [parse_sse(event) async for event in orchestrator.process_query(request)]
 
@@ -264,6 +363,7 @@ class AgentExecutionTraceTests(unittest.IsolatedAsyncioTestCase):
             patch("langchain.agents.create_tool_calling_agent", return_value=Mock()),
             patch("langchain.agents.AgentExecutor", FakeAgentExecutor),
             patch("services.recommendations.get_recommendation_store", return_value=recommendation_store),
+            patch.object(orchestrator, "_load_fallback_sources", new=AsyncMock(return_value=[])),
         ):
             events = [parse_sse(event) async for event in orchestrator.process_query(request)]
 
@@ -297,6 +397,7 @@ class AgentExecutionTraceTests(unittest.IsolatedAsyncioTestCase):
             patch("langchain.agents.create_tool_calling_agent", return_value=Mock()),
             patch("langchain.agents.AgentExecutor", FakeAgentExecutor),
             patch("services.recommendations.get_recommendation_store", return_value=recommendation_store),
+            patch.object(orchestrator, "_load_fallback_sources", new=AsyncMock(return_value=[])),
         ):
             events = [parse_sse(event) async for event in orchestrator.process_query(request)]
 

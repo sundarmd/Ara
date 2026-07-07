@@ -119,11 +119,13 @@ class ToolCitationTests(unittest.IsolatedAsyncioTestCase):
                 self.search_kwargs = None
                 self.__class__.instances.append(self)
 
-            def search(self, query, search_depth, max_results):
+            def search(self, query, search_depth, topic, time_range, max_results):
                 self.search_thread_id = threading.get_ident()
                 self.search_kwargs = {
                     "query": query,
                     "search_depth": search_depth,
+                    "topic": topic,
+                    "time_range": time_range,
                     "max_results": max_results,
                 }
                 return {
@@ -147,7 +149,58 @@ class ToolCitationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(tavily_client.search_kwargs, {
             "query": "markets",
             "search_depth": "basic",
+            "topic": "finance",
+            "time_range": None,
             "max_results": 3,
         })
         sources = tool_sources(output)
         self.assertEqual([source["citation_id"] for source in sources], [300])
+
+    async def test_web_search_scopes_current_market_queries_to_today(self):
+        class FakeTavilyClient:
+            instances = []
+
+            def __init__(self, api_key):
+                self.api_key = api_key
+                self.search_kwargs = None
+                self.__class__.instances.append(self)
+
+            def search(self, query, search_depth, topic, time_range, max_results):
+                self.search_kwargs = {
+                    "query": query,
+                    "search_depth": search_depth,
+                    "topic": topic,
+                    "time_range": time_range,
+                    "max_results": max_results,
+                }
+                return {
+                    "results": [
+                        {
+                            "title": "US equities update",
+                            "content": "Stocks moved higher today.",
+                            "url": "https://example.com/equities",
+                            "published_date": "2026-07-07",
+                        }
+                    ]
+                }
+
+        with (
+            patch.object(tools.settings, "TAVILY_API_KEY", "tvly-test"),
+            patch.object(tools, "TavilyClient", FakeTavilyClient),
+            patch.object(tools, "_today_iso", return_value="2026-07-07"),
+        ):
+            output = await tools.web_search.ainvoke(
+                {"query": "latest US equity headlines today"}
+            )
+
+        tavily_client = FakeTavilyClient.instances[0]
+        self.assertEqual(tavily_client.search_kwargs, {
+            "query": "latest US equity headlines today as of 2026-07-07",
+            "search_depth": "basic",
+            "topic": "finance",
+            "time_range": "day",
+            "max_results": 3,
+        })
+        sources = tool_sources(output)
+        self.assertEqual(sources[0]["metadata"]["report_date"], "2026-07-07")
+        self.assertIn("Search date: 2026-07-07", sources[0]["text"])

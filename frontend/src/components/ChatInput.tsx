@@ -4,6 +4,7 @@ import { useDocuments } from '../contexts/DocumentsContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface ChatInputProps {
     onSend: (message: string) => void;
@@ -51,6 +52,11 @@ export function ChatInput({ onSend, disabled = false, placeholder = "Ask a quest
     const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !file.name.toLowerCase().endsWith('.pdf')) {
+            if (file) {
+                toast.error('Invalid file type', {
+                    description: 'Only PDF files are supported',
+                });
+            }
             e.target.value = '';
             return;
         }

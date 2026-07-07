@@ -5,7 +5,9 @@ Exposes specific capabilities as callable functions with schemas.
 import asyncio
 import json
 import logging
+import re
 from contextvars import ContextVar, Token
+from datetime import date
 from typing import List, Optional, Dict, Any, Annotated
 from pydantic import BaseModel, Field
 from langchain_core.tools import tool
@@ -63,6 +65,25 @@ def reset_search_filter_scope(token: Token) -> None:
 def effective_search_filter(tool_value: Optional[str], scope_key: str) -> Optional[str]:
     scoped_value = _SEARCH_FILTER_SCOPE.get().get(scope_key)
     return scoped_value if scoped_value is not None else tool_value
+
+
+def _today_iso() -> str:
+    return date.today().isoformat()
+
+
+def _web_search_time_range(query: str) -> Optional[str]:
+    normalized = query.lower()
+    if re.search(r"\b(today|daily|intraday|this morning|this afternoon)\b", normalized):
+        return "day"
+    if re.search(r"\b(latest|current|recent|this week|now|news|headlines)\b", normalized):
+        return "week"
+    return None
+
+
+def _date_scoped_web_query(query: str, today_iso: str) -> str:
+    if today_iso in query:
+        return query
+    return f"{query} as of {today_iso}"
 
 
 class SearchKnowledgeBaseInput(BaseModel):
@@ -247,12 +268,20 @@ async def web_search(query: str) -> str:
         return tool_error("Web search is disabled (TAVILY_API_KEY missing).")
         
     try:
+        today_iso = _today_iso()
+        time_range = _web_search_time_range(query)
+        tavily_query = _date_scoped_web_query(query, today_iso) if time_range else query
         tavily = TavilyClient(api_key=settings.TAVILY_API_KEY)
-        # Deep search for better quality
         loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(
             None,
-            lambda: tavily.search(query=query, search_depth="basic", max_results=3),
+            lambda: tavily.search(
+                query=tavily_query,
+                search_depth="basic",
+                topic="finance",
+                time_range=time_range,
+                max_results=3,
+            ),
         )
         
         results = response.get("results", [])
@@ -269,14 +298,20 @@ async def web_search(query: str) -> str:
 
             original_url = res.get("url", "")
             deep_link = f"{original_url}#:~:text={safe_snippet}" if original_url else None
+            published_date = res.get("published_date") or res.get("publishedDate")
 
             source_entry = {
                 "citation_id": citation_id(WEB_CITATION_START, i),
-                "text": f"WEB RESULT: {res.get('title')}\n{content}",
+                "text": (
+                    f"WEB RESULT: {res.get('title')}\n"
+                    f"Search date: {today_iso}\n"
+                    f"Published: {published_date or 'Unknown'}\n"
+                    f"{content}"
+                ),
                 "metadata": {
                     "bank": "Web",
                     "title": res.get("title", "Web Result"),
-                    "report_date": "Live",
+                    "report_date": published_date or f"Live as of {today_iso}",
                     "url": deep_link
                 }
             }

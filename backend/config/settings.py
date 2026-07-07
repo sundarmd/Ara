@@ -13,7 +13,12 @@ class Settings(BaseSettings):
     MISTRAL_OCR_ENDPOINT: str = "https://api.mistral.ai/v1/ocr"
     MISTRAL_CHAT_ENDPOINT: str = "https://api.mistral.ai/v1/chat/completions"
     MISTRAL_CHAT_MODEL: str = "mistral-large-latest"
+    CHAT_MAX_RETRIES: int = 5
     EMBEDDING_MODEL_NAME: str = "mistral-embed"
+    EMBEDDING_MAX_RETRIES: int = 5
+    EMBEDDING_RETRY_BASE_SECONDS: float = 1.0
+    EMBEDDING_RETRY_MAX_SECONDS: float = 20.0
+    EMBEDDING_RETRY_JITTER_SECONDS: float = 0.25
     
     # Web Search
     TAVILY_API_KEY: Optional[str] = None

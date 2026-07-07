@@ -1,6 +1,6 @@
 import threading
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from fastapi import HTTPException
 from langchain_core.documents import Document
@@ -40,6 +40,22 @@ class StatsEndpointTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ResearchVectorStoreStatsTests(unittest.TestCase):
+    def test_init_disables_chroma_telemetry(self):
+        embedding_client = Mock()
+
+        with (
+            patch("services.database.os.makedirs"),
+            patch("services.database.get_embedding_client", return_value=embedding_client),
+            patch("services.database.Chroma") as chroma,
+        ):
+            ResearchVectorStore()
+
+        kwargs = chroma.call_args.kwargs
+        self.assertEqual(kwargs["collection_name"], "research_chunks")
+        self.assertEqual(kwargs["embedding_function"], embedding_client)
+        self.assertEqual(kwargs["persist_directory"], settings.VECTOR_DB_DIR)
+        self.assertFalse(kwargs["client_settings"].anonymized_telemetry)
+
     def test_get_collection_stats_counts_chroma_collection(self):
         collection = Mock()
         collection.count.return_value = 7
@@ -112,6 +128,45 @@ class ResearchVectorStoreIndexTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(document.metadata["table_row_start"], 10)
         self.assertEqual(document.metadata["table_row_end"], 20)
 
+    async def test_index_chunks_retries_rate_limit_errors(self):
+        class FakeVectorStore:
+            def __init__(self):
+                self.calls = 0
+
+            def add_documents(self, documents):
+                self.calls += 1
+                if self.calls == 1:
+                    raise RuntimeError("429 Too Many Requests")
+                self.documents = documents
+
+        fake_vector_store = FakeVectorStore()
+        store = object.__new__(ResearchVectorStore)
+        store.vectorstore = fake_vector_store
+
+        with (
+            patch.object(settings, "EMBEDDING_MAX_RETRIES", 1),
+            patch.object(settings, "EMBEDDING_RETRY_BASE_SECONDS", 0.01),
+            patch.object(settings, "EMBEDDING_RETRY_JITTER_SECONDS", 0),
+            patch("services.database.asyncio.sleep", new=AsyncMock()) as sleep,
+        ):
+            await store.index_chunks([
+                Chunk(
+                    id="chunk-1",
+                    doc_id="doc-1",
+                    bank="GS",
+                    asset_class="rates",
+                    report_date="2026-01-01",
+                    page_start=1,
+                    page_end=1,
+                    section=None,
+                    segment_types=["body"],
+                    text="Duration should rally.",
+                )
+            ])
+
+        self.assertEqual(fake_vector_store.calls, 2)
+        sleep.assert_awaited_once()
+
 
 class ResearchVectorStoreSearchTests(unittest.IsolatedAsyncioTestCase):
     async def test_search_runs_similarity_search_in_executor(self):
@@ -157,7 +212,7 @@ class ResearchVectorStoreSearchTests(unittest.IsolatedAsyncioTestCase):
             {
                 "query": "duration",
                 "k": 3,
-                "filter": {"bank": "GS", "asset_class": "rates"},
+                "filter": {"$and": [{"bank": "GS"}, {"asset_class": "rates"}]},
             },
         )
         self.assertEqual(
@@ -171,6 +226,42 @@ class ResearchVectorStoreSearchTests(unittest.IsolatedAsyncioTestCase):
                 }
             ],
         )
+
+    async def test_search_retries_rate_limit_errors(self):
+        class FakeVectorStore:
+            def __init__(self):
+                self.calls = 0
+
+            def similarity_search_with_score(self, query, k, filter):
+                self.calls += 1
+                if self.calls == 1:
+                    raise RuntimeError("rate limit reached")
+                return [
+                    (
+                        Document(
+                            id="chunk-1",
+                            page_content="Equities rallied.",
+                            metadata={"doc_id": "doc-1"},
+                        ),
+                        0.2,
+                    )
+                ]
+
+        fake_vector_store = FakeVectorStore()
+        store = object.__new__(ResearchVectorStore)
+        store.vectorstore = fake_vector_store
+
+        with (
+            patch.object(settings, "EMBEDDING_MAX_RETRIES", 1),
+            patch.object(settings, "EMBEDDING_RETRY_BASE_SECONDS", 0.01),
+            patch.object(settings, "EMBEDDING_RETRY_JITTER_SECONDS", 0),
+            patch("services.database.asyncio.sleep", new=AsyncMock()) as sleep,
+        ):
+            results = await store.search(query="equities", n_results=1)
+
+        self.assertEqual(fake_vector_store.calls, 2)
+        self.assertEqual(results[0]["text"], "Equities rallied.")
+        sleep.assert_awaited_once()
 
 
 class ResearchVectorStoreDeleteTests(unittest.TestCase):

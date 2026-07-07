@@ -93,6 +93,7 @@ class ChatFilterToolTests(unittest.IsolatedAsyncioTestCase):
             patch.object(tools, "search_documents", search_documents),
             patch("langchain.agents.create_tool_calling_agent", return_value=Mock()),
             patch("langchain.agents.AgentExecutor", FakeAgentExecutor),
+            patch.object(orchestrator, "_load_fallback_sources", new=AsyncMock(return_value=[])),
         ):
             events = [event async for event in orchestrator.process_query(request)]
 
