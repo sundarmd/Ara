@@ -54,6 +54,7 @@ class ResearchVectorStoreStatsTests(unittest.TestCase):
         self.assertEqual(kwargs["collection_name"], "research_chunks")
         self.assertEqual(kwargs["embedding_function"], embedding_client)
         self.assertEqual(kwargs["persist_directory"], settings.VECTOR_DB_DIR)
+        self.assertTrue(kwargs["client_settings"].is_persistent)
         self.assertFalse(kwargs["client_settings"].anonymized_telemetry)
 
     def test_get_collection_stats_counts_chroma_collection(self):

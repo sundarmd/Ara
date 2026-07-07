@@ -125,9 +125,16 @@ class AgentExecutionTraceTests(unittest.IsolatedAsyncioTestCase):
         token_events = [event for event in events if event["type"] == "token"]
         complete_event = [event for event in events if event["type"] == "complete"][0]
 
-        self.assertIn("Searching Research Report Knowledge Base", thought_events[0]["content"])
-        self.assertIn("Found 1 source", thought_events[1]["content"])
-        self.assertEqual(thought_events[-1]["content"], "Synthesizing answer.")
+        thought_contents = [event["content"] for event in thought_events]
+        self.assertIn("Reading the request", thought_contents[0])
+        self.assertIn("Routing the request", thought_contents[1])
+        self.assertIn("No chat-level bank or asset-class filter", thought_contents[2])
+        self.assertTrue(
+            any("Searching Research Report Knowledge Base" in content for content in thought_contents)
+        )
+        self.assertTrue(any("Found 1 source" in content for content in thought_contents))
+        self.assertTrue(any("Inspecting evidence" in content for content in thought_contents))
+        self.assertIn("Synthesizing the final answer", thought_contents[-1])
         self.assertEqual(token_events[0]["content"], "Visible answer ")
         self.assertEqual(complete_event["answer"], "Final answer [1]")
         serialized_events = json.dumps(events)

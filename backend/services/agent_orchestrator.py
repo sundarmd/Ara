@@ -206,10 +206,39 @@ class AgentOrchestrator:
             
             # Streaming state
             collected_sources = []
+            tools_used = []
+            tool_source_counts = {}
+
+            yield self._format_event(StreamEventType.THOUGHT, {
+                "phase": "analyzing",
+                "content": self._build_request_trace(request, input_text),
+                "details": [{
+                    "history_messages": max(0, len(request.messages) - 1),
+                    "query_length": len(input_text),
+                }],
+            })
+            yield self._format_event(StreamEventType.THOUGHT, {
+                "phase": "analyzing",
+                "content": self._build_route_trace(input_text),
+                "details": [{
+                    "needs_web": int(_wants_web_search(input_text)),
+                    "needs_recommendations": int(_wants_structured_recommendations(input_text)),
+                    "needs_citations": int(_needs_cited_fallback(input_text)),
+                }],
+            })
+
             search_filter_token = set_search_filter_scope(
                 bank=request.bank,
                 asset_class=request.asset_class,
             )
+            yield self._format_event(StreamEventType.THOUGHT, {
+                "phase": "searching",
+                "content": self._build_filter_trace(request),
+                "details": [{
+                    "bank": request.bank,
+                    "asset_class": request.asset_class,
+                }],
+            })
             
             async for event in agent_executor.astream_events(
                 {"input": input_text, "chat_history": history},
@@ -238,6 +267,7 @@ class AgentOrchestrator:
                 elif kind == "on_tool_start":
                     tool_name = event["name"]
                     tool_input = event["data"].get("input", {})
+                    tools_used.append(tool_name)
                     thought_content = self._build_tool_start_trace(tool_name, tool_input)
                         
                     yield self._format_event(StreamEventType.THOUGHT, {
@@ -253,6 +283,9 @@ class AgentOrchestrator:
                     parsed_sources, tool_error = self._parse_tool_output(output)
                     collected_sources.extend(parsed_sources)
                     source_count = len(parsed_sources)
+                    tool_source_counts[tool_name] = (
+                        tool_source_counts.get(tool_name, 0) + source_count
+                    )
                     details = {"tool": tool_name, "source_count": source_count}
                     if tool_error:
                         details["error"] = tool_error
@@ -264,6 +297,18 @@ class AgentOrchestrator:
                         else self._build_tool_end_trace(tool_name, source_count),
                         "details": [details]
                     })
+                    if parsed_sources:
+                        yield self._format_event(StreamEventType.THOUGHT, {
+                            "phase": "analyzing",
+                            "content": self._build_source_summary_trace(
+                                tool_name,
+                                parsed_sources,
+                            ),
+                            "details": [{
+                                "tool": tool_name,
+                                "source_count": source_count,
+                            }],
+                        })
 
                 elif kind == "on_chain_end" and event["name"] == "AgentExecutor":
                     result = event["data"].get("output")
@@ -271,15 +316,20 @@ class AgentOrchestrator:
                         final_answer = result["output"]
                         clean_answer = self._strip_private_markup(final_answer).strip()
 
-                        yield self._format_event(StreamEventType.THOUGHT, {
-                            "phase": "generating",
-                            "content": "Synthesizing answer."
-                        })
-
                         recommendations = await self._load_structured_recommendations(
                             request=request,
                             query=input_text,
                         )
+                        yield self._format_event(StreamEventType.THOUGHT, {
+                            "phase": "analyzing",
+                            "content": self._build_recommendation_trace(
+                                query=input_text,
+                                recommendations=recommendations,
+                            ),
+                            "details": [{
+                                "recommendation_count": len(recommendations),
+                            }],
+                        })
                         if not collected_sources and _needs_cited_fallback(input_text):
                             fallback_sources = await self._load_fallback_sources(
                                 request=request,
@@ -291,6 +341,30 @@ class AgentOrchestrator:
                                     clean_answer,
                                     collected_sources,
                                 )
+                                yield self._format_event(StreamEventType.THOUGHT, {
+                                    "phase": "analyzing",
+                                    "content": self._build_source_summary_trace(
+                                        "fallback",
+                                        fallback_sources,
+                                    ),
+                                    "details": [{
+                                        "tool": "fallback",
+                                        "source_count": len(fallback_sources),
+                                    }],
+                                })
+
+                        yield self._format_event(StreamEventType.THOUGHT, {
+                            "phase": "generating",
+                            "content": self._build_synthesis_trace(
+                                sources=collected_sources,
+                                tools_used=tools_used,
+                                tool_source_counts=tool_source_counts,
+                            ),
+                            "details": [{
+                                "source_count": len(collected_sources),
+                                "tool_count": len(tools_used),
+                            }],
+                        })
 
                         yield self._format_event(StreamEventType.COMPLETE, {
                             "answer": clean_answer,
@@ -464,6 +538,124 @@ class AgentOrchestrator:
             lines.append(f"- **{title}{location}:** {text} [{citation_id}]")
 
         return "\n".join(lines)
+
+    def _build_request_trace(self, request: ChatRequest, query: str) -> str:
+        history_count = max(0, len(request.messages) - 1)
+        if history_count:
+            history_part = f"Preserving {history_count} prior chat turn(s) for context"
+        else:
+            history_part = "Starting a new chat turn"
+
+        query_preview = " ".join(query.split())
+        if len(query_preview) > 180:
+            query_preview = f"{query_preview[:177]}..."
+
+        return (
+            f"{history_part}. Reading the request and preparing an evidence-first "
+            f"answer plan for: '{query_preview}'."
+        )
+
+    def _build_route_trace(self, query: str) -> str:
+        route_notes = []
+        if _wants_web_search(query):
+            route_notes.append("live web search for current market context")
+        if _wants_structured_recommendations(query):
+            route_notes.append("structured recommendation lookup")
+        if _needs_cited_fallback(query):
+            route_notes.append("source-backed retrieval with citations")
+        if not route_notes:
+            route_notes.append("general report retrieval and synthesis")
+
+        return "Routing the request through: " + "; ".join(route_notes) + "."
+
+    def _build_filter_trace(self, request: ChatRequest) -> str:
+        filters = []
+        if request.bank:
+            filters.append(f"bank={request.bank}")
+        if request.asset_class:
+            filters.append(f"asset_class={request.asset_class}")
+
+        if filters:
+            return "Applying chat-level filters before tool execution: " + ", ".join(filters) + "."
+        return "No chat-level bank or asset-class filter is set; tools can search across all indexed sources."
+
+    def _build_source_summary_trace(
+        self,
+        tool_name: str,
+        sources: list[Dict[str, Any]],
+    ) -> str:
+        display_name = TOOL_DISPLAY_NAMES.get(tool_name, tool_name)
+        labels = [self._format_source_label(source) for source in sources[:3]]
+        labels = [label for label in labels if label]
+        if not labels:
+            return f"Inspecting {len(sources)} source(s) returned by {display_name}."
+
+        suffix = ""
+        if len(sources) > len(labels):
+            suffix = f" plus {len(sources) - len(labels)} more"
+        return (
+            f"Inspecting evidence from {display_name}: "
+            + "; ".join(labels)
+            + suffix
+            + "."
+        )
+
+    def _format_source_label(self, source: Dict[str, Any]) -> str:
+        citation_id = source.get("citation_id")
+        metadata = source.get("metadata") or {}
+        title = metadata.get("title") or metadata.get("bank") or "Source"
+        page_start = metadata.get("page_start")
+        page_end = metadata.get("page_end")
+
+        location = ""
+        if page_start and page_end and page_end != page_start:
+            location = f", pages {page_start}-{page_end}"
+        elif page_start:
+            location = f", page {page_start}"
+
+        citation = f"[{citation_id}]" if citation_id is not None else ""
+        return f"{title}{location} {citation}".strip()
+
+    def _build_recommendation_trace(
+        self,
+        query: str,
+        recommendations: list[Dict[str, Any]],
+    ) -> str:
+        if not _wants_structured_recommendations(query):
+            return "Structured recommendation rows were not requested, so the response will rely on retrieved evidence and tool outputs."
+        if not recommendations:
+            return "Structured recommendation lookup was requested, but no matching sell-side recommendation rows were available."
+        return f"Loaded {len(recommendations)} structured recommendation row(s) for the response payload."
+
+    def _build_synthesis_trace(
+        self,
+        sources: list[Dict[str, Any]],
+        tools_used: list[str],
+        tool_source_counts: dict[str, int],
+    ) -> str:
+        if tools_used:
+            tool_summary = ", ".join(
+                f"{TOOL_DISPLAY_NAMES.get(tool, tool)} ({tool_source_counts.get(tool, 0)} source(s))"
+                for tool in dict.fromkeys(tools_used)
+            )
+        else:
+            tool_summary = "no external tools"
+
+        citation_ids = [
+            source.get("citation_id")
+            for source in sources
+            if source.get("citation_id") is not None
+        ]
+        citation_preview = ", ".join(f"[{citation_id}]" for citation_id in citation_ids[:6])
+        if len(citation_ids) > 6:
+            citation_preview += f", plus {len(citation_ids) - 6} more"
+        if not citation_preview:
+            citation_preview = "none returned"
+
+        return (
+            f"Synthesizing the final answer from {len(sources)} collected source(s). "
+            f"Tools used: {tool_summary}. Citation IDs available: {citation_preview}."
+        )
 
     def _build_tool_start_trace(self, tool_name: str, tool_input: Dict[str, Any]) -> str:
         display_name = TOOL_DISPLAY_NAMES.get(tool_name, tool_name)

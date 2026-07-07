@@ -252,8 +252,6 @@ function ContentWithCitations({ content, sources: _sources }: { content: string;
 
 export function Message({ message, thoughts = [], isStreaming = false, thinkingStartTime }: MessageProps) {
     const isUser = message.role === 'user';
-    // Consider thinking if streaming and content is empty or just whitespace
-    const isThinking = isStreaming && (!message.content || message.content.trim().length === 0);
 
     if (isUser) {
         return (
@@ -275,7 +273,7 @@ export function Message({ message, thoughts = [], isStreaming = false, thinkingS
             {thoughts.length > 0 && (
                 <ThoughtsPanel
                     thoughts={thoughts}
-                    isThinking={isThinking}
+                    isThinking={isStreaming}
                     startTime={thinkingStartTime}
                 />
             )}

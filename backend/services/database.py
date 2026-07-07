@@ -32,7 +32,10 @@ class ResearchVectorStore:
             collection_name="research_chunks",
             embedding_function=self.embedding_function,
             persist_directory=settings.VECTOR_DB_DIR,
-            client_settings=ChromaSettings(anonymized_telemetry=False),
+            client_settings=ChromaSettings(
+                anonymized_telemetry=False,
+                is_persistent=True,
+            ),
             collection_metadata={"description": "Sell-side research report chunks"}
         )
     
