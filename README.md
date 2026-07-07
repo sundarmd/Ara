@@ -8,6 +8,8 @@ A financial research assistant purpose-built for investment analysts. Powered by
 
 ## Local Development Quick Start
 
+### Option A: Docker Compose
+
 This Compose setup is for local development and demos. It bind-mounts the
 backend and frontend source trees into the containers, so the running app
 follows your working tree rather than an immutable production image. Treat it
@@ -17,12 +19,95 @@ as a local development setup, not a reproducible production deployment profile.
 cp .env.template .env
 # Add MISTRAL_API_KEY (required) and TAVILY_API_KEY (optional)
 
-docker compose build --no-cache
-docker compose up -d
+docker compose up --build -d
+docker compose ps
 ```
 
 - **Frontend**: http://localhost:3000
 - **API Docs**: http://localhost:8000/docs
+
+Confirm the backend is alive and that the vector store is visible:
+
+```bash
+curl http://localhost:8000/health
+curl http://localhost:8000/stats
+```
+
+After uploading PDFs, `/documents` should list the SQLite metadata and `/stats`
+should show a non-zero `document_count` for the persisted Chroma collection.
+Compose stores runtime data in the `backend_data` Docker volume mounted at
+`/app/data`.
+
+If port `3000` or `8000` is already in use, stop the conflicting process or use
+the direct local mode below with alternate ports.
+
+### Option B: Direct Local Dev Servers
+
+This is useful when Docker is not needed, or when `3000` / `8000` are already
+occupied by another local app.
+
+```bash
+cp .env.template .env
+# Add MISTRAL_API_KEY (required) and TAVILY_API_KEY (optional)
+
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+
+set -a
+source ../.env
+set +a
+
+ARA_DATA_ROOT="${ARA_DATA_ROOT:-$HOME/Desktop/Ara Demo Data}"
+mkdir -p "$ARA_DATA_ROOT"/{reports,vector_store,images,tables}
+
+DATA_ROOT="$ARA_DATA_ROOT" \
+DATA_DIR="$ARA_DATA_ROOT/reports" \
+REPORTS_DIR="$ARA_DATA_ROOT/reports" \
+VECTOR_DB_DIR="$ARA_DATA_ROOT/vector_store" \
+IMAGES_DIR="$ARA_DATA_ROOT/images" \
+TABLES_DIR="$ARA_DATA_ROOT/tables" \
+ENABLE_DEBUG_ENDPOINTS=true \
+CORS_ALLOWED_ORIGINS=http://127.0.0.1:15173,http://localhost:15173 \
+PYTHONPATH=. \
+.venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 18000
+```
+
+In another terminal:
+
+```bash
+cd frontend
+npm install
+
+set -a
+source ../.env
+set +a
+
+VITE_API_URL=http://127.0.0.1:18000 VITE_API_KEY="${VITE_API_KEY:-}" \
+npm run dev -- --host 127.0.0.1 --port 15173
+```
+
+- **Frontend**: http://127.0.0.1:15173
+- **API Docs**: http://127.0.0.1:18000/docs
+
+Validate the running direct-local app:
+
+```bash
+curl http://127.0.0.1:18000/health
+curl http://127.0.0.1:18000/stats
+curl http://127.0.0.1:18000/documents
+```
+
+### Runtime Notes
+
+- `MISTRAL_API_KEY` is required for OCR, chat, and embeddings.
+- `TAVILY_API_KEY` is optional; without it, live web search is unavailable.
+- Mistral OCR/embedding calls can rate limit during rapid PDF uploads. Retry
+  uploads one at a time if you hit `429` errors.
+- The knowledge base has two stores: SQLite document metadata and Chroma vector
+  chunks. A healthy indexed demo should have document rows in `/documents` and
+  a non-zero vector `document_count` in `/stats`.
 
 ### Automated Quality Gates
 
