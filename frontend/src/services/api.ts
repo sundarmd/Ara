@@ -92,12 +92,14 @@ class ApiService {
     async openUrl(url?: string | null) {
         if (!url) return;
 
-        if (!API_KEY || !this.isApiUrl(url)) {
-            window.open(url, '_blank', 'noopener,noreferrer');
+        const resolvedUrl = this.resolveApiUrl(url);
+
+        if (!API_KEY || !this.isApiUrl(resolvedUrl)) {
+            window.open(resolvedUrl, '_blank', 'noopener,noreferrer');
             return;
         }
 
-        const target = new URL(url, window.location.origin);
+        const target = new URL(resolvedUrl, window.location.origin);
         const hash = target.hash;
         target.hash = '';
 
@@ -111,6 +113,32 @@ class ApiService {
         const blobUrl = URL.createObjectURL(await response.blob());
         window.open(`${blobUrl}${hash}`, '_blank', 'noopener,noreferrer');
         setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    }
+
+    private resolveApiUrl(url: string) {
+        let target: URL;
+        let apiUrl: URL;
+        try {
+            target = new URL(url, window.location.origin);
+            apiUrl = new URL(this.baseUrl, window.location.origin);
+        } catch {
+            return url;
+        }
+
+        if (
+            this.isLocalHost(target.hostname) &&
+            this.isLocalHost(apiUrl.hostname) &&
+            /^\/documents\/[^/]+\/file$/.test(target.pathname)
+        ) {
+            target.protocol = apiUrl.protocol;
+            target.host = apiUrl.host;
+        }
+
+        return target.toString();
+    }
+
+    private isLocalHost(hostname: string) {
+        return hostname === 'localhost' || hostname === '127.0.0.1';
     }
 
     private isApiUrl(url: string) {

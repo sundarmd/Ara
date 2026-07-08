@@ -69,6 +69,7 @@ VECTOR_DB_DIR="$ARA_DATA_ROOT/vector_store" \
 IMAGES_DIR="$ARA_DATA_ROOT/images" \
 TABLES_DIR="$ARA_DATA_ROOT/tables" \
 ENABLE_DEBUG_ENDPOINTS=true \
+API_PUBLIC_BASE_URL=http://127.0.0.1:18000 \
 CORS_ALLOWED_ORIGINS='["http://127.0.0.1:15173","http://localhost:15173"]' \
 PYTHONPATH=. \
 .venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 18000
