@@ -82,8 +82,15 @@ class AgentExecutionTraceTests(unittest.IsolatedAsyncioTestCase):
                     "data": {
                         "output": json.dumps([
                             {
+                                "citation_id": 1,
                                 "text": "Duration view",
-                                "metadata": {"citation_id": 1},
+                                "metadata": {
+                                    "doc_id": "duration-report",
+                                    "title": "Duration Report",
+                                    "page_start": 7,
+                                    "section": "Rates",
+                                    "citation_id": 1,
+                                },
                             }
                         ])
                     },
@@ -129,12 +136,23 @@ class AgentExecutionTraceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Reading the request", thought_contents[0])
         self.assertIn("Routing the request", thought_contents[1])
         self.assertIn("No chat-level bank or asset-class filter", thought_contents[2])
+        self.assertIn("Execution plan", thought_contents[3])
         self.assertTrue(
             any("Searching Research Report Knowledge Base" in content for content in thought_contents)
         )
         self.assertTrue(any("Found 1 source" in content for content in thought_contents))
         self.assertTrue(any("Inspecting evidence" in content for content in thought_contents))
+        self.assertTrue(
+            any(
+                "Evidence coverage from Research Report Knowledge Base" in content
+                and "page coverage: 7" in content
+                and "sections: Rates" in content
+                for content in thought_contents
+            )
+        )
         self.assertIn("Synthesizing the final answer", thought_contents[-1])
+        self.assertIn("1 unique document", thought_contents[-1])
+        self.assertIn("Grounding plan", thought_contents[-1])
         self.assertEqual(token_events[0]["content"], "Visible answer ")
         self.assertEqual(complete_event["answer"], "Final answer [1]")
         serialized_events = json.dumps(events)
@@ -188,6 +206,58 @@ class AgentExecutionTraceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(error_trace["details"][0]["error"], "vector store unavailable")
         self.assertEqual(error_trace["details"][0]["source_count"], 0)
         self.assertEqual(complete_event["sources"], [])
+
+    async def test_orchestrator_streams_text_blocks_without_reference_metadata(self):
+        class FakeAgentExecutor:
+            def __init__(self, agent, tools, verbose):
+                pass
+
+            async def astream_events(self, payload, version):
+                yield {
+                    "event": "on_chat_model_stream",
+                    "data": {
+                        "chunk": SimpleNamespace(
+                            content=[
+                                {"type": "text", "text": "Visible "},
+                                {"type": "reference", "reference_ids": [1]},
+                                {"text": "answer"},
+                            ]
+                        )
+                    },
+                }
+                yield {
+                    "event": "on_chain_end",
+                    "name": "AgentExecutor",
+                    "data": {
+                        "output": {
+                            "output": [
+                                {"type": "text", "text": "Visible "},
+                                {"type": "reference", "reference_ids": [1]},
+                                {"text": "answer"},
+                            ]
+                        }
+                    },
+                }
+
+        orchestrator = object.__new__(AgentOrchestrator)
+        orchestrator.llm = Mock()
+
+        request = ChatRequest(
+            messages=[{"role": "user", "content": "Summarize the uploaded report."}],
+        )
+
+        with (
+            patch("langchain.agents.create_tool_calling_agent", return_value=Mock()),
+            patch("langchain.agents.AgentExecutor", FakeAgentExecutor),
+            patch.object(orchestrator, "_load_fallback_sources", new=AsyncMock(return_value=[])),
+        ):
+            events = [parse_sse(event) async for event in orchestrator.process_query(request)]
+
+        token_events = [event for event in events if event["type"] == "token"]
+        complete_event = [event for event in events if event["type"] == "complete"][0]
+        self.assertEqual(token_events[0]["content"], "Visible answer")
+        self.assertEqual(complete_event["answer"], "Visible answer")
+        self.assertNotIn("reference_ids", json.dumps(events))
 
     async def test_orchestrator_adds_fallback_sources_when_answer_has_none(self):
         class FakeAgentExecutor:

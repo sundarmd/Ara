@@ -239,6 +239,15 @@ class AgentOrchestrator:
                     "asset_class": request.asset_class,
                 }],
             })
+            yield self._format_event(StreamEventType.THOUGHT, {
+                "phase": "analyzing",
+                "content": self._build_execution_plan_trace(request, input_text),
+                "details": [{
+                    "needs_web": _wants_web_search(input_text),
+                    "needs_recommendations": _wants_structured_recommendations(input_text),
+                    "needs_citations": _needs_cited_fallback(input_text),
+                }],
+            })
             
             async for event in agent_executor.astream_events(
                 {"input": input_text, "chat_history": history},
@@ -249,13 +258,7 @@ class AgentOrchestrator:
                 if kind == "on_chat_model_stream":
                     # ... (Existing stream logic) ...
                     chunk = event["data"]["chunk"]
-                    content = chunk.content
-                    
-                    # Fix for "can only concatenate str (not "list") to str"
-                    if isinstance(content, list):
-                        # If content is a list (e.g. multimodal or complex blocks), join it
-                        # Filter out non-string elements if necessary, but usually it's text chunks
-                        content = "".join([str(c) for c in content if c])
+                    content = self._coerce_model_text(chunk.content)
                         
                     if content:
                         visible_content = self._strip_private_markup(content)
@@ -309,11 +312,23 @@ class AgentOrchestrator:
                                 "source_count": source_count,
                             }],
                         })
+                        yield self._format_event(StreamEventType.THOUGHT, {
+                            "phase": "analyzing",
+                            "content": self._build_evidence_coverage_trace(
+                                tool_name,
+                                parsed_sources,
+                            ),
+                            "details": [{
+                                "tool": tool_name,
+                                "source_count": source_count,
+                                "document_count": len(self._source_document_keys(parsed_sources)),
+                            }],
+                        })
 
                 elif kind == "on_chain_end" and event["name"] == "AgentExecutor":
                     result = event["data"].get("output")
                     if result and isinstance(result, dict) and "output" in result:
-                        final_answer = result["output"]
+                        final_answer = self._coerce_model_text(result["output"])
                         clean_answer = self._strip_private_markup(final_answer).strip()
 
                         recommendations = await self._load_structured_recommendations(
@@ -350,6 +365,18 @@ class AgentOrchestrator:
                                     "details": [{
                                         "tool": "fallback",
                                         "source_count": len(fallback_sources),
+                                    }],
+                                })
+                                yield self._format_event(StreamEventType.THOUGHT, {
+                                    "phase": "analyzing",
+                                    "content": self._build_evidence_coverage_trace(
+                                        "fallback",
+                                        fallback_sources,
+                                    ),
+                                    "details": [{
+                                        "tool": "fallback",
+                                        "source_count": len(fallback_sources),
+                                        "document_count": len(self._source_document_keys(fallback_sources)),
                                     }],
                                 })
 
@@ -420,6 +447,29 @@ class AgentOrchestrator:
         content = re.sub(r"</?thought>", "", content, flags=re.IGNORECASE)
         content = re.sub(r"<function.*?>", "", content, flags=re.DOTALL | re.IGNORECASE)
         return content
+
+    def _coerce_model_text(self, content: Any) -> str:
+        """Extract visible text from provider stream chunks without stringifying metadata blocks."""
+        if isinstance(content, str):
+            return content
+
+        if isinstance(content, list):
+            parts = []
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(item)
+                    continue
+                if isinstance(item, dict):
+                    text = item.get("text")
+                    if isinstance(text, str):
+                        parts.append(text)
+                else:
+                    text = getattr(item, "text", None)
+                    if isinstance(text, str):
+                        parts.append(text)
+            return "".join(parts)
+
+        return str(content) if content is not None else ""
 
     def _parse_tool_output(self, output: Any) -> tuple[list[Dict[str, Any]], Optional[str]]:
         """Extract sources and tool errors from the shared tool-output contract."""
@@ -579,6 +629,24 @@ class AgentOrchestrator:
             return "Applying chat-level filters before tool execution: " + ", ".join(filters) + "."
         return "No chat-level bank or asset-class filter is set; tools can search across all indexed sources."
 
+    def _build_execution_plan_trace(self, request: ChatRequest, query: str) -> str:
+        steps = [
+            "preserve relevant chat context",
+            "retrieve source-backed evidence before answering",
+            "carry citation IDs, page numbers, sections, and titles into the response",
+        ]
+
+        if request.bank or request.asset_class:
+            steps.append("keep user-selected filters scoped to retrieval")
+        if _wants_web_search(query):
+            steps.append("use live web search only for current or latest context")
+        if _wants_structured_recommendations(query):
+            steps.append("load structured recommendation rows for the response payload")
+        if _needs_cited_fallback(query):
+            steps.append("fall back to cited retrieval if synthesis returns no sources")
+
+        return "Execution plan: " + "; ".join(steps) + "."
+
     def _build_source_summary_trace(
         self,
         tool_name: str,
@@ -600,6 +668,33 @@ class AgentOrchestrator:
             + "."
         )
 
+    def _build_evidence_coverage_trace(
+        self,
+        tool_name: str,
+        sources: list[Dict[str, Any]],
+    ) -> str:
+        display_name = TOOL_DISPLAY_NAMES.get(tool_name, tool_name)
+        document_count = len(self._source_document_keys(sources))
+        page_ranges = self._source_page_ranges(sources)
+        sections = self._source_sections(sources)
+        citation_ids = self._source_citation_ids(sources)
+
+        coverage_parts = [
+            f"{self._count_phrase(len(sources), 'cited chunk')} across "
+            f"{self._count_phrase(document_count, 'document')}"
+        ]
+        if page_ranges:
+            coverage_parts.append("page coverage: " + ", ".join(page_ranges[:6]))
+        if sections:
+            coverage_parts.append("sections: " + ", ".join(sections[:4]))
+        if citation_ids:
+            citations = ", ".join(f"[{citation_id}]" for citation_id in citation_ids[:8])
+            if len(citation_ids) > 8:
+                citations += f", plus {len(citation_ids) - 8} more"
+            coverage_parts.append("citations queued: " + citations)
+
+        return "Evidence coverage from " + display_name + ": " + "; ".join(coverage_parts) + "."
+
     def _format_source_label(self, source: Dict[str, Any]) -> str:
         citation_id = source.get("citation_id")
         metadata = source.get("metadata") or {}
@@ -615,6 +710,75 @@ class AgentOrchestrator:
 
         citation = f"[{citation_id}]" if citation_id is not None else ""
         return f"{title}{location} {citation}".strip()
+
+    def _source_document_keys(self, sources: list[Dict[str, Any]]) -> list[str]:
+        document_keys = []
+        seen = set()
+        for index, source in enumerate(sources):
+            metadata = source.get("metadata") or {}
+            citation_id = source.get("citation_id") or metadata.get("citation_id")
+            key = (
+                metadata.get("doc_id")
+                or metadata.get("document_id")
+                or metadata.get("title")
+                or metadata.get("bank")
+                or metadata.get("url")
+                or f"source:{citation_id or index}"
+            )
+            key = str(key)
+            if key not in seen:
+                seen.add(key)
+                document_keys.append(key)
+        return document_keys
+
+    def _source_page_ranges(self, sources: list[Dict[str, Any]]) -> list[str]:
+        page_ranges = []
+        seen = set()
+        for source in sources:
+            metadata = source.get("metadata") or {}
+            page_start = metadata.get("page_start")
+            page_end = metadata.get("page_end")
+            if not page_start:
+                continue
+            if page_end and page_end != page_start:
+                page_range = f"{page_start}-{page_end}"
+            else:
+                page_range = str(page_start)
+            if page_range not in seen:
+                seen.add(page_range)
+                page_ranges.append(page_range)
+        return page_ranges
+
+    def _source_sections(self, sources: list[Dict[str, Any]]) -> list[str]:
+        sections = []
+        seen = set()
+        for source in sources:
+            metadata = source.get("metadata") or {}
+            section = metadata.get("section")
+            if not section:
+                continue
+            section = str(section)
+            if section not in seen:
+                seen.add(section)
+                sections.append(section)
+        return sections
+
+    def _source_citation_ids(self, sources: list[Dict[str, Any]]) -> list[Any]:
+        citation_ids = []
+        seen = set()
+        for source in sources:
+            metadata = source.get("metadata") or {}
+            citation_id = source.get("citation_id") or metadata.get("citation_id")
+            if citation_id is None or citation_id in seen:
+                continue
+            seen.add(citation_id)
+            citation_ids.append(citation_id)
+        return citation_ids
+
+    def _count_phrase(self, count: int, singular: str, plural: Optional[str] = None) -> str:
+        if count == 1:
+            return f"1 {singular}"
+        return f"{count} {plural or singular + 's'}"
 
     def _build_recommendation_trace(
         self,
@@ -652,9 +816,17 @@ class AgentOrchestrator:
         if not citation_preview:
             citation_preview = "none returned"
 
+        document_count = len(self._source_document_keys(sources))
+        grounding_note = (
+            "Grounding plan: prioritize retrieved report evidence, keep citations "
+            "attached to claims, and separate live web context from indexed PDFs when both appear."
+        )
+
         return (
-            f"Synthesizing the final answer from {len(sources)} collected source(s). "
-            f"Tools used: {tool_summary}. Citation IDs available: {citation_preview}."
+            f"Synthesizing the final answer from {self._count_phrase(len(sources), 'collected source')} "
+            f"across {self._count_phrase(document_count, 'unique document')}. "
+            f"Tools used: {tool_summary}. Citation IDs available: {citation_preview}. "
+            f"{grounding_note}"
         )
 
     def _build_tool_start_trace(self, tool_name: str, tool_input: Dict[str, Any]) -> str:

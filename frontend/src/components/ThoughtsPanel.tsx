@@ -51,16 +51,6 @@ export function ThoughtsPanel({ thoughts, isThinking, startTime }: ThoughtsPanel
         }
     }, [isThinking, startTime]);
 
-    // Auto-expand/collapse logic
-    useEffect(() => {
-        if (isThinking) {
-            setIsExpanded(true);
-        }
-        // Keep the trace panel open to show the process.
-        // We do *not* auto-collapse when generation finishes, letting user see the history.
-        // Only collapse if user manually closes it.
-    }, [isThinking]);
-
     if (thoughts.length === 0 && !isThinking) {
         return null;
     }
